@@ -8,6 +8,9 @@
  * ----------------------------------------------------------------------------
  */
 
+#include "opencl_include.hpp"
+#include "selector.hpp"
+
 #include <exception>
 #include <ios>
 #include <iostream>
@@ -15,11 +18,6 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
-
-#define CL_HPP_ENABLE_EXCEPTIONS
-#include <CL/opencl.hpp>
-
-#include "selector.hpp"
 
 static const auto print_delim = [](auto &os) { os << " -------- \n"; };
 
@@ -68,7 +66,7 @@ void display_platform_info(cl::Platform &plat, std::ostream &os) {
   auto raw_version = plat.getInfo<CL_PLATFORM_VERSION>();
   os << "Raw Version: " << raw_version << "\n";
   auto decoded_version = clutils::decode_platform_version(raw_version);
-  os << "Decoded Version: " << decoded_version.major << "." << decoded_version.minor << " + "
+  os << "Decoded Version: " << decoded_version.ver.major << "." << decoded_version.ver.minor << " + "
      << decoded_version.platform_specific << "\n";
 
   os << "Extensions: " << plat.getInfo<CL_PLATFORM_EXTENSIONS>() << "\n";

@@ -8,6 +8,9 @@
  * ----------------------------------------------------------------------------
  */
 
+#include "opencl_include.hpp"
+
+#include <algorithm>
 #include <cassert>
 #include <charconv>
 #include <optional>
@@ -18,12 +21,21 @@
 namespace clutils {
 
 struct platform_version {
-  int         major, minor;
-  std::string platform_specific;
+  int major, minor;
+};
+
+inline auto operator<=>(const platform_version &lhs, const platform_version &rhs) {
+  if (auto cmp = lhs.major <=> rhs.major; cmp != 0) return cmp;
+  return lhs.minor <=> rhs.minor;
+}
+
+struct platform_version_ext {
+  platform_version ver;
+  std::string      platform_specific;
 };
 
 // Pass only valid opencl version string to this function
-inline platform_version decode_platform_version(std::string version_string) {
+inline platform_version_ext decode_platform_version(std::string version_string) {
   // This should always work https://registry.khronos.org/OpenCL/sdk/3.0/docs/man/html/clGetPlatformInfo.html
   auto version_start = version_string.find_first_of("0123456789");
 
@@ -56,9 +68,29 @@ inline platform_version decode_platform_version(std::string version_string) {
   auto major = to_int(major_string), minor = to_int(minor_string);
   if (!major || !minor) throw std::invalid_argument{"OpenCL platform version string is invalid"};
 
-  return platform_version{major.value(), minor.value(), platform_specific};
+  return platform_version_ext{platform_version{major.value(), minor.value()}, platform_specific};
 }
 
-class cl_platform_selector {};
+class platform_selector {
+protected:
+  cl::Platform            m_platform;
+  std::vector<cl::Device> m_devices;
+  cl::Context             m_context;
+
+public:
+  platform_selector(platform_version min_ver) {
+    std::vector<cl::Platform> platforms;
+
+    cl::Platform::get(&platforms);
+    auto chosen_platform = std::find_if(platforms.begin(), platforms.end(), [min_ver](auto p) {
+      auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>());
+      return (version.ver >= min_ver);
+    });
+
+    if (chosen_platform == platforms.end()) throw std::runtime_error{"No fitting OpenCL platforms found"};
+    m_platform = *chosen_platform;
+    m_platform.getDevices(CL_DEVICE_TYPE_GPU, &m_devices);
+  }
+};
 
 }; // namespace clutils
