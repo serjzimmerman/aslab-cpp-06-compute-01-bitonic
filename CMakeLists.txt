@@ -71,10 +71,15 @@ endif()
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(OpenCL REQUIRED)
 
+set(COMMON_INCLUDE_DIR
+  ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
+
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
   target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
+  target_include_directories(${TARGET_NAME} PUBLIC ${COMMON_INCLUDE_DIR})
 endfunction()
 
-add_opencl_program(oclinfo app/oclinfo.cc 220)
+add_opencl_program(oclinfo oclinfo.cc 220)

@@ -19,6 +19,8 @@
 #define CL_HPP_ENABLE_EXCEPTIONS
 #include <CL/opencl.hpp>
 
+#include "selector.hpp"
+
 static const auto print_delim = [](auto &os) { os << " -------- \n"; };
 
 std::string get_device_type_string(int type) {
@@ -62,7 +64,13 @@ void display_device_info(cl::Device &dev, std::ostream &os) {
 void display_platform_info(cl::Platform &plat, std::ostream &os) {
   os << "Name: " << plat.getInfo<CL_PLATFORM_NAME>() << "\n";
   os << "Vendor: " << plat.getInfo<CL_PLATFORM_VENDOR>() << "\n";
-  os << "Version: " << plat.getInfo<CL_PLATFORM_VERSION>() << "\n";
+
+  auto raw_version = plat.getInfo<CL_PLATFORM_VERSION>();
+  os << "Raw Version: " << raw_version << "\n";
+  auto decoded_version = clutils::decode_platform_version(raw_version);
+  os << "Decoded Version: " << decoded_version.major << "." << decoded_version.minor << " + "
+     << decoded_version.platform_specific << "\n";
+
   os << "Extensions: " << plat.getInfo<CL_PLATFORM_EXTENSIONS>() << "\n";
 
   std::vector<cl::Device> devices;
