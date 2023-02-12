@@ -12,15 +12,19 @@
 
 #include "opencl_include.hpp"
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
-#include <iostream>
-
 namespace clutils {
 
-inline std::vector<std::string> get_required_device_extensions() {
-  return {"cl_khr_byte_addressable_store", "cl_khr_global_int32_base_atomics", "cl_khr_global_int32_extended_atomics"};
+template <typename... Ts> std::string kernel_define(std::string symbol, Ts... values) {
+  std::stringstream ss;
+  ss << "#define " << symbol << " ";
+  ((ss << " " << values), ...);
+  ss << "\n";
+  return ss.str();
 }
 
 template <class T> inline std::size_t sizeof_container(const T &container) {

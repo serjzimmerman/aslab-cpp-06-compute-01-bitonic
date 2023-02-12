@@ -12,7 +12,6 @@
 #include "opencl_include.hpp"
 #include "utils.hpp"
 
-#include <CL/opencl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <charconv>
@@ -119,13 +118,6 @@ public:
 
     if (chosen_device == devices.end()) throw std::runtime_error{"No suitable OpenCL device found"};
     m_device = *chosen_device;
-  }
-
-  const std::array<cl_context_properties, 3> get_context_properties() const {
-    return std::array<cl_context_properties, 3>{
-        CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(m_platform()),
-        0 // signals end of property list
-    };
   }
 };
 

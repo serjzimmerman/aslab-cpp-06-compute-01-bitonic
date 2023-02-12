@@ -8,7 +8,6 @@
  * ----------------------------------------------------------------------------
  */
 
-#include "CL/cl.h"
 #include "opencl_include.hpp"
 #include "selector.hpp"
 
