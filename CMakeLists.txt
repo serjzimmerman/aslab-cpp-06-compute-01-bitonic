@@ -83,7 +83,7 @@ set(COMMON_INCLUDE_DIR
 
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
-  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL)
+  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL Boost::program_options)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
   target_include_directories(${TARGET_NAME} PUBLIC ${COMMON_INCLUDE_DIR})
 endfunction()

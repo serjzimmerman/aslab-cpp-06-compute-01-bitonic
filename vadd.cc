@@ -12,11 +12,20 @@
 #include "selector.hpp"
 #include "utils.hpp"
 
-#include <CL/opencl.hpp>
+#include <algorithm>
+#include <chrono>
 #include <iostream>
+#include <iterator>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
+
+#include <boost/program_options.hpp>
+#include <boost/program_options/option.hpp>
+#include <type_traits>
+
+namespace po = boost::program_options;
 
 namespace app {
 
@@ -37,14 +46,14 @@ public:
   static constexpr clutils::platform_version c_api_version = {2, 2};
 
   vecadd()
-      : clutils::platform_selector{c_api_version}, m_ctx{m_device}, m_queue{m_ctx},
+      : clutils::platform_selector{c_api_version}, m_ctx{m_device}, m_queue{m_ctx, cl::QueueProperties::Profiling},
         m_program{m_ctx, adder_kernel, true}, m_functor{m_program, "vec_add"} {}
 
-  std::vector<cl_int> add(std::span<const cl_int> spa, std::span<const cl_int> spb) {
+  std::vector<cl_int> add(std::span<const cl_int> spa, std::span<const cl_int> spb,
+                          std::chrono::microseconds *time = nullptr) {
     if (spa.size() != spb.size()) throw std::invalid_argument{"Mismatched vector sizes"};
 
-    const auto max_local_size = m_device.template getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    const auto size = ((spa.size() / max_local_size) + 1) * max_local_size;
+    const auto size = spa.size();
     const auto bin_size = sizeof(cl_int) * size;
 
     std::vector<cl_int> cvec;
@@ -57,24 +66,53 @@ public:
     cl::copy(m_queue, spa.begin(), spa.end(), abuf);
     cl::copy(m_queue, spb.begin(), spb.end(), bbuf);
 
-    cl::NDRange     global = {size}, local = {max_local_size};
-    cl::EnqueueArgs args = {m_queue, global, local};
+    cl::NDRange     global = {size};
+    cl::EnqueueArgs args = {m_queue, global};
 
-    m_functor(args, abuf, bbuf, cbuf);
+    auto evnt = m_functor(args, abuf, bbuf, cbuf);
+
+    evnt.wait();
+    std::chrono::nanoseconds time_start{evnt.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
+        time_end{evnt.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(time_end - time_start);
+    if (time) *time = duration;
 
     cl::copy(m_queue, cbuf, cvec.begin(), cvec.end());
-    cvec.resize(spa.size());
-
     return cvec;
   }
 };
 
 } // namespace app
 
-int main(int, char *[]) try {
+int main(int argc, char *argv[]) try {
+  po::options_description desc("Available options");
+
+  int      lower, upper;
+  unsigned count;
+  desc.add_options()("help,h", "Print this help message")("lower,l", po::value<int>(&lower)->default_value(0),
+                                                          "Low bound for random integer")(
+      "upper,u", po::value<int>(&upper)->default_value(32),
+      "Upper bound for random integer")("count,c", po::value<unsigned>(&count)->default_value(1048576),
+                                        "Length of arrays to sum")("print,p", "Verbose print");
+
+  bool print = false;
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  po::notify(vm);
+
+  if (vm.count("help")) {
+    std::cout << desc << "\n";
+    return 1;
+  }
+
+  print = vm.count("print");
+
   app::vecadd adder;
 
-  const auto print_array = [](auto name, auto vec) {
+  const auto print_array = [print](auto name, auto vec) {
+    if (!print) return;
     std::cout << name << " := { ";
     for (const auto &v : vec) {
       std::cout << v << " ";
@@ -82,14 +120,46 @@ int main(int, char *[]) try {
     std::cout << "}\n";
   };
 
-  std::vector<cl_int> a = {1, 2, 3, 4}, b = {8, 1, 2, 3};
+  std::random_device rnd_device;
+  std::mt19937       mersenne_engine{rnd_device()};
+
+  std::uniform_int_distribution<int> dist{lower, upper};
+
+  const auto random = [&dist, &mersenne_engine] { return dist(mersenne_engine); };
+  const auto fill_random_vector = [random]<typename T>(std::vector<T> &vec, auto count) {
+    std::generate_n(std::back_inserter(vec), count, random);
+  };
+
+  std::vector<cl_int> a, b;
+  fill_random_vector(a, count);
+  fill_random_vector(b, count);
 
   print_array("A", a);
   print_array("B", b);
 
-  auto res = adder.add(a, b);
+  std::chrono::microseconds pure_time;
 
+  auto res = adder.add(a, b, &pure_time);
   print_array("C", res);
+  bool correct = (a.size() == res.size());
+
+  if (correct) {
+    for (size_t i = 0; i < a.size(); ++i) {
+      if (a[i] + b[i] == res[i]) continue;
+      std::cout << "Mismatch at position i = " << i << "\n";
+      correct = false;
+      break;
+    }
+  }
+
+  std::cout << "GPU pure time: " << pure_time.count() << " us\n";
+
+  if (correct) {
+    std::cout << "GPU vector add works fine\n";
+  } else {
+    std::cout << "GPU vector add is borked\n";
+  }
+
 } catch (cl::BuildError &e) {
   std::cerr << "Compilation failed:\n";
   for (const auto &v : e.getBuildLog()) {
