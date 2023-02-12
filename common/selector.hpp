@@ -7,8 +7,11 @@
  * return.
  * ----------------------------------------------------------------------------
  */
+#pragma once
 
 #include "opencl_include.hpp"
+
+#include "utils.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -75,7 +78,6 @@ class platform_selector {
 protected:
   cl::Platform            m_platform;
   std::vector<cl::Device> m_devices;
-  cl::Context             m_context;
 
 public:
   platform_selector(platform_version min_ver) {
@@ -91,6 +93,25 @@ public:
     m_platform = *chosen_platform;
     m_platform.getDevices(CL_DEVICE_TYPE_GPU, &m_devices);
   }
+
+  const std::array<cl_context_properties, 3> get_context_properties() const {
+    return std::array<cl_context_properties, 3>{
+        CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(m_platform()),
+        0 // signals end of property list
+    };
+  }
+
+  const std::vector<cl::Device> &get_available_devices() const & { return m_devices; }
 };
+
+inline std::vector<cl::Device> enumerate_suitable_devices(const std::vector<cl::Device>  &devices,
+                                                          const std::vector<std::string> &extensions) {
+  std::vector<cl::Device> suitable_devices;
+  for (auto &d : devices) {
+    auto [supports, missing] = device_supports_extensions(d, extensions);
+    if (supports) suitable_devices.push_back(d);
+  }
+  return suitable_devices;
+}
 
 }; // namespace clutils
