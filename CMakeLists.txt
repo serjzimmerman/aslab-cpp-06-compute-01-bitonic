@@ -84,4 +84,4 @@ endfunction()
 
 add_opencl_program(oclinfo oclinfo.cc 220)
 add_opencl_program(vadd vadd/vadd.cc 220)
-target_include_directories(vadd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/common)
+target_include_directories(vadd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common ${CMAKE_CURRENT_SOURCE_DIR}/include)

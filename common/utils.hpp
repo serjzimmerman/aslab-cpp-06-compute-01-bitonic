@@ -34,4 +34,8 @@ inline support_result device_supports_extensions(const cl::Device &device, const
   return std::make_pair(missing_extensions.empty(), missing_extensions);
 }
 
+template <class T> inline std::size_t sizeof_container(const T &container) {
+  return sizeof(typename T::value_type) * container.size();
+}
+
 } // namespace clutils
