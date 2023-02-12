@@ -11,18 +11,19 @@
 #include "opencl_include.hpp"
 #include "selector.hpp"
 
+#include <CL/opencl.hpp>
 #include <cassert>
 #include <exception>
 #include <fstream>
 #include <sstream>
 
-const cl::Program create_program_compile(const std::string &filename) {
+const cl::Program create_program_compile(const std::string &filename, cl::Context ctx) {
   std::fstream fs{filename, std::ifstream::in};
   if (!fs.is_open()) throw std::runtime_error("Failed to open kernel file");
   std::stringstream ss;
   ss << fs.rdbuf();
   fs.close();
-  return cl::Program{ss.str(), true};
+  return cl::Program{ctx, ss.str(), true};
 }
 
 int main() try {
@@ -48,19 +49,16 @@ int main() try {
   const auto  context_properties = pl_selector.get_context_properties();
   cl::Context context{CL_DEVICE_TYPE_GPU, context_properties.data()};
 
-  const auto       program = create_program_compile("vadd/vadd.cl");
+  const auto program =
+      create_program_compile("/home/sergeiz/Documents/C++/aslab-cpp-06-compute-01-bitonic/vadd/vadd.cl", context);
   cl::Kernel       kernel{program, "vadd"};
   cl::CommandQueue queue{context, device};
 
   cl::Buffer A_buf{context, CL_MEM_READ_ONLY, clutils::sizeof_container(A)};
   cl::Buffer B_buf{context, CL_MEM_READ_ONLY, clutils::sizeof_container(B)};
   cl::Buffer C_buf{context, CL_MEM_WRITE_ONLY, clutils::sizeof_container(C)};
-  cl::copy(A.begin(), A.end(), A_buf);
-  cl::copy(B.begin(), B.end(), B_buf);
-
-  kernel.setArg(0, sizeof(cl::Buffer), &A_buf);
-  kernel.setArg(1, sizeof(cl::Buffer), &B_buf);
-  kernel.setArg(2, sizeof(cl::Buffer), &C_buf);
+  cl::copy(queue, A.begin(), A.end(), A_buf);
+  cl::copy(queue, B.begin(), B.end(), B_buf);
 
   cl::NDRange                                           glob_range{C.size()};
   cl::NDRange                                           loc_range{1};
@@ -77,7 +75,7 @@ int main() try {
   std::cout << " }\n";
 
 } catch (cl::Error &e) {
-  std::cerr << "OpenCL error: " << e.what() << "\n";
+  std::cerr << "OpenCL error: " << e.what() << ",code" << e.err() << "\n";
 } catch (std::exception &e) {
   std::cerr << "Encountered error: " << e.what() << "\n";
 } catch (...) {
