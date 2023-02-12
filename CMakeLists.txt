@@ -8,6 +8,9 @@ if((${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBUIL
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
+endif()
 include(FetchContent)
 
 # Possibly support windows and MSVC compiler
@@ -68,8 +71,11 @@ if (SANITIZE)
   add_link_options(-fsanitize=undefined -fno-omit-frame-pointer)
 endif()
 
+add_subdirectory(3rd-party/OpenCL-Headers)
+add_subdirectory(3rd-party/OpenCL-ICD-Loader)
+add_subdirectory(3rd-party/OpenCL-CLHPP)
+
 find_package(Boost REQUIRED COMPONENTS program_options)
-find_package(OpenCL REQUIRED)
 
 set(COMMON_INCLUDE_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/common
@@ -83,5 +89,4 @@ function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
 endfunction()
 
 add_opencl_program(oclinfo oclinfo.cc 220)
-add_opencl_program(vadd vadd/vadd.cc 220)
-target_include_directories(vadd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_opencl_program(vadd vadd.cc 220)

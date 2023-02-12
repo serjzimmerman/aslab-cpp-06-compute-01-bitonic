@@ -10,12 +10,14 @@
 #pragma once
 
 #include "opencl_include.hpp"
-
 #include "utils.hpp"
 
+#include <CL/opencl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <charconv>
+#include <compare>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -74,24 +76,49 @@ inline platform_version_ext decode_platform_version(std::string version_string) 
   return platform_version_ext{platform_version{major.value(), minor.value()}, platform_specific};
 }
 
+using support_result = typename std::pair<bool, std::vector<std::string>>;
+
+inline support_result device_supports_extensions(cl::Device device, auto ext_start, auto ext_finish) {
+  const auto               supported_extensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
+  std::vector<std::string> missing_extensions;
+
+  for (; ext_start != ext_finish; ++ext_start) {
+    if (supported_extensions.find(*ext_start) == std::string::npos) missing_extensions.push_back(*ext_start);
+  }
+
+  return std::make_pair(missing_extensions.empty(), missing_extensions);
+}
+
 class platform_selector {
 protected:
-  cl::Platform            m_platform;
-  std::vector<cl::Device> m_devices;
+  cl::Platform m_platform;
+  cl::Device   m_device;
 
 public:
-  platform_selector(platform_version min_ver) {
+  static constexpr auto default_pred = [](auto) { return true; };
+
+  using platform_pred_type = std::function<bool(cl::Platform)>;
+  using device_pred_type = std::function<bool(cl::Device)>;
+
+  platform_selector(platform_version min_ver, platform_pred_type platform_pred = default_pred,
+                    device_pred_type device_pred = default_pred) {
     std::vector<cl::Platform> platforms;
 
     cl::Platform::get(&platforms);
-    auto chosen_platform = std::find_if(platforms.begin(), platforms.end(), [min_ver](auto p) {
-      auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>());
-      return (version.ver >= min_ver);
+    auto chosen_platform = std::find_if(platforms.begin(), platforms.end(), [min_ver, platform_pred](auto p) {
+      const auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>());
+      return (version.ver >= min_ver) && platform_pred(p);
     });
 
-    if (chosen_platform == platforms.end()) throw std::runtime_error{"No fitting OpenCL platforms found"};
+    if (chosen_platform == platforms.end()) throw std::runtime_error{"No fitting OpenCL platform found"};
     m_platform = *chosen_platform;
-    m_platform.getDevices(CL_DEVICE_TYPE_GPU, &m_devices);
+
+    std::vector<cl::Device> devices;
+    m_platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+    auto chosen_device = std::find_if(devices.begin(), devices.end(), [device_pred](auto d) { return device_pred(d); });
+
+    if (chosen_device == devices.end()) throw std::runtime_error{"No suitable OpenCL device found"};
+    m_device = *chosen_device;
   }
 
   const std::array<cl_context_properties, 3> get_context_properties() const {
@@ -100,18 +127,6 @@ public:
         0 // signals end of property list
     };
   }
-
-  const std::vector<cl::Device> &get_available_devices() const & { return m_devices; }
 };
-
-inline std::vector<cl::Device> enumerate_suitable_devices(const std::vector<cl::Device>  &devices,
-                                                          const std::vector<std::string> &extensions) {
-  std::vector<cl::Device> suitable_devices;
-  for (auto &d : devices) {
-    auto [supports, missing] = device_supports_extensions(d, extensions);
-    if (supports) suitable_devices.push_back(d);
-  }
-  return suitable_devices;
-}
 
 }; // namespace clutils
