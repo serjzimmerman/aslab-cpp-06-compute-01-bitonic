@@ -75,6 +75,9 @@ add_subdirectory(3rd-party/OpenCL-Headers)
 add_subdirectory(3rd-party/OpenCL-ICD-Loader)
 add_subdirectory(3rd-party/OpenCL-CLHPP)
 
+set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
+add_subdirectory(linmath EXCLUDE_FROM_ALL)
+
 find_package(Boost REQUIRED COMPONENTS program_options)
 
 set(COMMON_INCLUDE_DIR
@@ -90,3 +93,6 @@ endfunction()
 
 add_opencl_program(oclinfo oclinfo.cc 220)
 add_opencl_program(vadd vadd.cc 220)
+
+add_opencl_program(matmult matmult.cc 220)
+target_link_libraries(matmult PUBLIC throttle)

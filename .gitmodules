@@ -7,3 +7,6 @@
 [submodule "3rd-party/OpenCL-ICD-Loader"]
 	path = 3rd-party/OpenCL-ICD-Loader
 	url = https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
+[submodule "mipt-aslab-cpp-04-linmath-02-resistors"]
+	path = linmath
+	url = https://github.com/serjzimmerman/mipt-aslab-cpp-04-linmath-02-resistors.git

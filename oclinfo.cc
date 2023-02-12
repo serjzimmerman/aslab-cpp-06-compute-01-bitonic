@@ -8,6 +8,7 @@
  * ----------------------------------------------------------------------------
  */
 
+#include "CL/cl.h"
 #include "opencl_include.hpp"
 #include "selector.hpp"
 
@@ -36,6 +37,7 @@ void display_device_info(cl::Device &dev, std::ostream &os) {
   os << "  Name: " << dev.getInfo<CL_DEVICE_NAME>() << "\n";
   os << "  Type: " << get_device_type_string(dev.getInfo<CL_DEVICE_TYPE>()) << "\n";
   os << "  Extensions: " << dev.getInfo<CL_DEVICE_EXTENSIONS>() << "\n";
+  os << "  Compute units: " << dev.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << "\n";
 
   os << "  Global memory size: " << dev.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / static_cast<float>(1073741824)
      << " GiB\n";
