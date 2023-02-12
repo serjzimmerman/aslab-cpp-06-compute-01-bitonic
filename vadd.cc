@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <iterator>
 #include <random>
@@ -21,19 +22,30 @@
 #include <stdexcept>
 #include <string>
 
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/program_options.hpp>
 #include <boost/program_options/option.hpp>
-#include <type_traits>
+
+#define STRINGIFY0(v) #v
+#define STRINGIFY(v) STRINGIFY0(v)
+
+#ifndef TYPE__
+#define TYPE__ int
+#endif
 
 namespace po = boost::program_options;
 
 namespace app {
 
 static const std::string adder_kernel =
-    R"(__kernel void vec_add(__global int *A, __global int *B, __global int *C) {
+    R"(__kernel void vec_add(__global TYPE *A, __global TYPE *B, __global TYPE *C) {
   int i = get_global_id(0);
   C[i] = A[i] + B[i];
 })";
+
+std::string substitute_type(std::string input) {
+  return boost::algorithm::replace_all_copy(input, "TYPE", STRINGIFY(TYPE__));
+}
 
 class vecadd : private clutils::platform_selector {
   cl::Context      m_ctx;
@@ -47,16 +59,16 @@ public:
 
   vecadd()
       : clutils::platform_selector{c_api_version}, m_ctx{m_device}, m_queue{m_ctx, cl::QueueProperties::Profiling},
-        m_program{m_ctx, adder_kernel, true}, m_functor{m_program, "vec_add"} {}
+        m_program{m_ctx, substitute_type(adder_kernel), true}, m_functor{m_program, "vec_add"} {}
 
-  std::vector<cl_int> add(std::span<const cl_int> spa, std::span<const cl_int> spb,
+  std::vector<TYPE__> add(std::span<const TYPE__> spa, std::span<const TYPE__> spb,
                           std::chrono::microseconds *time = nullptr) {
     if (spa.size() != spb.size()) throw std::invalid_argument{"Mismatched vector sizes"};
 
     const auto size = spa.size();
-    const auto bin_size = sizeof(cl_int) * size;
+    const auto bin_size = clutils::sizeof_container(spa);
 
-    std::vector<cl_int> cvec;
+    std::vector<TYPE__> cvec;
     cvec.resize(size);
 
     cl::Buffer abuf = {m_ctx, CL_MEM_READ_ONLY, bin_size};
@@ -123,14 +135,14 @@ int main(int argc, char *argv[]) try {
   std::random_device rnd_device;
   std::mt19937       mersenne_engine{rnd_device()};
 
-  std::uniform_int_distribution<int> dist{lower, upper};
+  std::uniform_int_distribution<TYPE__> dist{lower, upper};
 
   const auto random = [&dist, &mersenne_engine] { return dist(mersenne_engine); };
   const auto fill_random_vector = [random]<typename T>(std::vector<T> &vec, auto count) {
     std::generate_n(std::back_inserter(vec), count, random);
   };
 
-  std::vector<cl_int> a, b;
+  std::vector<TYPE__> a, b;
   fill_random_vector(a, count);
   fill_random_vector(b, count);
 
@@ -156,8 +168,10 @@ int main(int argc, char *argv[]) try {
 
   if (correct) {
     std::cout << "GPU vector add works fine\n";
+    return EXIT_SUCCESS;
   } else {
     std::cout << "GPU vector add is borked\n";
+    return EXIT_FAILURE;
   }
 
 } catch (cl::BuildError &e) {
