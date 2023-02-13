@@ -84,11 +84,16 @@ set(COMMON_INCLUDE_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/common
 )
 
+set (INCLUDE_DIR
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
   target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL Boost::program_options)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
   target_include_directories(${TARGET_NAME} PUBLIC ${COMMON_INCLUDE_DIR})
+  target_include_directories(${TARGET_NAME} PUBLIC ${INCLUDE_DIR})
 endfunction()
 
 add_opencl_program(oclinfo oclinfo.cc 220)
@@ -98,4 +103,5 @@ add_opencl_program(matmult matmult.cc 220)
 target_link_libraries(matmult PUBLIC throttle)
 
 add_opencl_program(bitonic bitonic.cc 220)
-target_include_directories(bitonic PRIVATE include)
+
+
