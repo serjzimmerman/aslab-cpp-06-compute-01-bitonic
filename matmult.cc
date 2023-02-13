@@ -24,7 +24,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <boost/algorithm/string/replace.hpp>
 #include <boost/program_options.hpp>
 #include <boost/program_options/option.hpp>
 #include <type_traits>
@@ -35,7 +34,7 @@
 #define STRINGIFY(v) STRINGIFY0(v)
 
 #ifndef TYPE__
-#define TYPE__ float
+#define TYPE__ int
 #endif
 
 namespace po = boost::program_options;
@@ -113,13 +112,21 @@ public:
       int global_row = TILE_SIZE * tile_row + local_row;
       int global_col = TILE_SIZE * tile_col + local_col;
 
-      int tile_count = AY / TILE_SIZE;
+      int row_out_of_bounds = (global_row >= AX);
+      int col_out_of_bounds = (global_col >= BY);
+
+      // Pretty expensive modulo division. This can be done on the CPU just once for all kernels, but
+      // that would change the signature of the kernel functor and I can't be bothered to do it right now.
+      int tile_count = (AY % TILE_SIZE == 0 ? AY : (AY / TILE_SIZE + 1) * TILE_SIZE);
       TYPE sum = 0;
 
       for (int t = 0; t < tile_count; ++t) {
         // Step 1. Here each work group thread is responsible for copying data into the corresponding slot in the tile_A, tile_B
-        tile_A[local_row * TILE_SIZE + local_col] = A[global_row * AY + t * TILE_SIZE + local_col];
-        tile_B[local_row * TILE_SIZE + local_col] = B[BY * (t * TILE_SIZE + local_row) + global_col];
+        int curr_tiled_col = t * TILE_SIZE + local_col;
+        int curr_tiled_row = t * TILE_SIZE + local_row;
+
+        tile_A[local_row * TILE_SIZE + local_col] = ((curr_tiled_col >= AY || row_out_of_bounds) ? 0 : A[global_row * AY + curr_tiled_col]);
+        tile_B[local_row * TILE_SIZE + local_col] = ((curr_tiled_row >= AY || col_out_of_bounds) ? 0 : B[BY * curr_tiled_row + global_col]);
 
         // Barrier here to finish loading all the data before proceeding.
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -133,6 +140,7 @@ public:
         barrier(CLK_LOCAL_MEM_FENCE);
       }
 
+      if (row_out_of_bounds || col_out_of_bounds) return;
       C[global_row * BY + global_col] = sum;
     })";
 
@@ -145,9 +153,13 @@ public:
   std::string get_kernel_name() const override { return "matmult_localmem"; }
 
   ndrange_query get_ndranges(matrix_sizes sizes) const override {
-    if ((sizes.ax % m_local_size) != 0 || (sizes.ay % m_local_size) != 0 || (sizes.by % m_local_size) != 0)
-      throw std::invalid_argument{"Local size should evenly divide the matrix dimension"};
-    return {cl::NDRange{sizes.ax, sizes.by}, cl::NDRange{m_local_size, m_local_size}};
+    const auto lsz = m_local_size;
+    auto       round_size = [lsz](auto s) {
+      if (s % lsz != 0) return (s / lsz + 1) * lsz;
+      return s;
+    };
+
+    return {cl::NDRange{round_size(sizes.ax), round_size(sizes.by)}, cl::NDRange{m_local_size, m_local_size}};
   }
 };
 
@@ -248,7 +260,7 @@ int main(int argc, char *argv[]) try {
       "Number of rows in matrix A")("ay", po::value<unsigned>(&ay)->default_value(512), "Number of cols in matrix A")(
       "by", po::value<unsigned>(&by)->default_value(512), "Number of cols in matrix B")(
       "kernel,k", po::value<std::string>(&kernel_name)->default_value("localmem"),
-      "Which kernel to use: naive, localmem")("lsz", po::value<unsigned>(&lsz)->default_value(1),
+      "Which kernel to use: naive, localmem")("lsz", po::value<unsigned>(&lsz)->default_value(8),
                                               "Local iteration size");
 
   po::variables_map vm;
