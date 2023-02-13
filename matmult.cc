@@ -35,7 +35,7 @@
 #define STRINGIFY(v) STRINGIFY0(v)
 
 #ifndef TYPE__
-#define TYPE__ int
+#define TYPE__ float
 #endif
 
 namespace po = boost::program_options;

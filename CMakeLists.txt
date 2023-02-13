@@ -98,6 +98,4 @@ add_opencl_program(matmult matmult.cc 220)
 target_link_libraries(matmult PUBLIC throttle)
 
 add_opencl_program(bitonic bitonic.cc 220)
-
 target_include_directories(bitonic PRIVATE include)
-
