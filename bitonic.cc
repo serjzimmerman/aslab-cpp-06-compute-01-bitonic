@@ -8,7 +8,7 @@
  * ----------------------------------------------------------------------------
  */
 
-#include "simple_bitonic_sort.hpp"
+#include "bitonic.hpp"
 
 #include <iostream>
 #include <vector>

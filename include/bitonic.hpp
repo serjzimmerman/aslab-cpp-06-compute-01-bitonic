@@ -10,16 +10,22 @@
 
 #pragma once
 
-#include "i_bitonic_sort.hpp"
-
 #include <bit>
-#include <iterator>
+#include <span>
+#include <stdexcept>
 
 namespace bitonic {
 
-template <typename T> class simple_bitonic_sort : public i_bitonic_sort<T> {
-
+template <typename T> struct i_bitonic_sort {
 public:
+  virtual ~i_bitonic_sort() {}
+
+  // start, finish - 2^n range of elements to sort
+  virtual void operator()(std::span<T>) = 0;
+};
+
+template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
+
   // start, finish - 2^n range of elements to sort
   void operator()(std::span<T> container) override {
     unsigned size = container.size();
@@ -48,4 +54,5 @@ public:
     }
   }
 };
+
 } // namespace bitonic
