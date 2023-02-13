@@ -31,4 +31,11 @@ template <class T> inline std::size_t sizeof_container(const T &container) {
   return sizeof(typename T::value_type) * container.size();
 }
 
+enum class opencl_build_option : bool { strict = true, lazy = false };
+
+struct profiling_info {
+  std::chrono::milliseconds gpu_pure;
+  std::chrono::milliseconds gpu_wall;
+};
+
 } // namespace clutils
