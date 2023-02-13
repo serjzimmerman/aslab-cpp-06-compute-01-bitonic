@@ -18,6 +18,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <string>
 
 namespace bitonic {
 
@@ -64,6 +65,34 @@ template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
         }
       }
     }
+  }
+};
+
+class naive_bitonic_kernel : public i_bitonic_kernel_source {
+  std::string m_source;
+
+public:
+  naive_bitonic_kernel(const std::string type) {
+    static const std::string bitonic_naive =
+        R"(
+    __kernel void naive_bitonic (__global TYPE *in, __global TYPE *out, int step, int stage) {
+      int i = get_global_id(0);
+      int seq_len = 1 << (stage + 1);
+      int power_of_two = 1 << (step - stage);
+      int seq_n = i / seq_len;
+      int odd = seq_n / power_of_two;
+      bool increasing = ((odd % 2) == 0);
+      int halflen = seq_len / 2;
+      if (i < (seq_len * seq_n) + halflen) {
+        int   j = i + halflen;
+        if (((in[i] > in[j]) && increasing) ||
+            ((in[i] < in[j]) && !increasing)) {
+          out[i] = in[j];
+          out[j] = in[i];
+        }
+      }
+
+    })";
   }
 };
 
