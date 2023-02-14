@@ -136,23 +136,23 @@ public:
     if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
     cl::Event prev_event, first_event;
 
+    auto submit = [&, first_iter = true, size = container.size()](auto buf, auto step, auto stage) mutable {
+      if (first_iter) {
+        first_iter = false;
+        auto args = cl::EnqueueArgs{m_queue, size};
+        first_event = prev_event = m_functor(args, buf, step, stage);
+      } else {
+        auto args = cl::EnqueueArgs{m_queue, prev_event, size};
+        prev_event = m_functor(args, buf, step, stage);
+      }
+    };
+
     const auto func = [&, steps_n](auto buf) {
       for (unsigned step = 0; step < steps_n; ++step) {
         for (int stage = step; stage >= 0; --stage) {
-          auto submit = [&, first_iter = true, size = container.size()]() mutable {
-            if (first_iter) {
-              first_iter = false;
-              auto args = cl::EnqueueArgs{m_queue, size};
-              first_event = prev_event = m_functor(args, buf, step, stage);
-            } else {
-              auto args = cl::EnqueueArgs{m_queue, prev_event, size};
-              prev_event = m_functor(args, buf, step, stage);
-            }
-          };
-          submit();
+          submit(buf, step, stage);
         }
       }
-
       return prev_event;
     };
 
