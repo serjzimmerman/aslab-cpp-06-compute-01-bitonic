@@ -47,26 +47,18 @@ protected:
   gpu_bitonic()
       : clutils::platform_selector{cl_api_version}, m_ctx{m_device}, m_queue{m_ctx, cl::QueueProperties::Profiling} {}
 
-  using func_signature = cl::Event(cl::Buffer, int, int);
+  using func_signature = cl::Event(cl::Buffer);
 
   void run_boilerplate(std::span<T> container, std::function<func_signature> func, clutils::profiling_info *time) {
-    unsigned size = container.size();
-    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
 
     auto wall_start = std::chrono::high_resolution_clock::now();
 
-    cl::Event event;
-    int       steps_n = std::countr_zero(size);
-    for (int step = 0; step < steps_n; ++step) {
-      int stage_n = step;
-      for (int stage = stage_n; stage >= 0; --stage) {
-        cl::Buffer buff = {m_ctx, CL_MEM_READ_WRITE, clutils::sizeof_container(container)};
-        cl::copy(m_queue, container.begin(), container.end(), buff);
-        event = func(buff, step, stage);
-        event.wait();
-        cl::copy(m_queue, buff, container.begin(), container.end());
-      }
-    }
+    cl::Buffer buff = {m_ctx, CL_MEM_READ_WRITE, clutils::sizeof_container(container)};
+    cl::copy(m_queue, container.begin(), container.end(), buff);
+    auto event = func(buff);
+    event.wait();
+    cl::copy(m_queue, buff, container.begin(), container.end());
+
     auto                     wall_end = std::chrono::high_resolution_clock::now();
     std::chrono::nanoseconds pure_start{event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
         pure_end{event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
@@ -118,11 +110,19 @@ public:
         m_functor{m_program, kernel::entry()} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
-    const auto func = [&](auto buf, auto step, auto stage) {
-      cl::EnqueueArgs args = {gpu_bitonic<T>::m_queue, {container.size()}};
-      return m_functor(args, buf, step, stage);
-    };
-    return gpu_bitonic<T>::run_boilerplate(container, func, time);
+    unsigned size = container.size();
+    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
+    int steps_n = std::countr_zero(size);
+    for (int step = 0; step < steps_n; ++step) {
+      int stage_n = step;
+      for (int stage = stage_n; stage >= 0; --stage) {
+        const auto func = [&](auto buf) {
+          cl::EnqueueArgs args = {gpu_bitonic<T>::m_queue, {container.size()}};
+          return m_functor(args, buf, step, stage);
+        };
+        gpu_bitonic<T>::run_boilerplate(container, func, time);
+      }
+    }
   }
 };
 } // namespace bitonic
