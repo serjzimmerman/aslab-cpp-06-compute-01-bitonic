@@ -8,7 +8,12 @@
  * ----------------------------------------------------------------------------
  */
 
+#define STRINGIFY0(v) #v
+#define STRINGIFY(v) STRINGIFY0(v)
+
+#ifndef TYPE__
 #define TYPE__ int
+#endif
 
 #include "bitonic.hpp"
 
@@ -22,6 +27,8 @@
 
 #include <boost/program_options.hpp>
 #include <boost/program_options/option.hpp>
+
+using vector_type = std::vector<TYPE__>;
 
 namespace po = boost::program_options;
 
@@ -47,10 +54,15 @@ int validate_results(const std::vector<T> &origin, const std::vector<T> &res, co
   }
 }
 
+template <typename T> struct type_name {};
+template <> struct type_name<TYPE__> {
+  static constexpr const char *name_str = STRINGIFY(TYPE__);
+};
+
 int main(int argc, char **argv) try {
   po::options_description desc("Avaliable options");
 
-  TYPE__   lower, upper;
+  TYPE__ lower, upper;
   unsigned num;
 
   std::string kernel_name;
@@ -73,21 +85,22 @@ int main(int argc, char **argv) try {
   std::unique_ptr<bitonic::i_bitonic_sort<TYPE__>> sorter;
 
   if (kernel_name == "naive") {
-    sorter = std::make_unique<bitonic::naive_bitonic<TYPE__>>();
+    sorter = std::make_unique<bitonic::naive_bitonic<TYPE__, type_name<TYPE__>>>();
   } else {
     std::cout << "Unknown type of kernel: " << kernel_name << "\n ";
     return EXIT_FAILURE;
   }
 
   std::cout << "Sorting vector of size " << num << "...\n";
-  std::vector<TYPE__> origin(num);
+  vector_type origin;
+  origin.resize(num);
 
   auto rand_gen = clutils::create_random_number_generator<TYPE__>(lower, upper);
   rand_gen(origin);
 
-  std::chrono::milliseconds wall{};
+  std::chrono::milliseconds wall;
+  auto check = origin;
 
-  std::vector<TYPE__> check = origin;
   if (!skip_std_sort) {
     auto wall_start = std::chrono::high_resolution_clock::now();
     std::sort(check.begin(), check.end());
@@ -96,9 +109,9 @@ int main(int argc, char **argv) try {
   }
 
   clutils::profiling_info prof_info;
-  std::vector<TYPE__>     vec = origin;
+  auto vec = origin;
 
-  sorter->sort(std::span{vec}, &prof_info);
+  sorter->sort(vec, &prof_info);
 
   if (!skip_std_sort) std::cout << "std::sort wall time: " << wall.count() << " ms\n";
   std::cout << "GPU wall time: " << prof_info.gpu_wall.count() << " ms\n";
@@ -107,6 +120,11 @@ int main(int argc, char **argv) try {
   if (skip_std_sort) return EXIT_SUCCESS;
   return validate_results(origin, vec, check);
 
+} catch (cl::BuildError &e) {
+  std::cerr << "Compilation failed:\n";
+  for (const auto &v : e.getBuildLog()) {
+    std::cerr << v.second << "\n";
+  }
 } catch (cl::Error &e) {
   std::cerr << "OpenCL error: " << e.what() << "(" << e.err() << ")\n";
 } catch (std::exception &e) {

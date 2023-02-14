@@ -35,7 +35,7 @@ inline auto operator<=>(const platform_version &lhs, const platform_version &rhs
 
 struct platform_version_ext {
   platform_version ver;
-  std::string      platform_specific;
+  std::string platform_specific;
 };
 
 // Pass only valid opencl version string to this function
@@ -46,7 +46,7 @@ inline platform_version_ext decode_platform_version(std::string version_string) 
   if (version_start == std::string::npos) throw std::invalid_argument{"OpenCL platform version string is invalid"};
 
   version_string = version_string.substr(version_start);
-  auto        version_finish = version_string.find_first_of(" ");
+  auto version_finish = version_string.find_first_of(" ");
   std::string major_minor_string = version_string.substr(0, version_finish);
 
   std::string platform_specific;
@@ -78,7 +78,7 @@ inline platform_version_ext decode_platform_version(std::string version_string) 
 using support_result = typename std::pair<bool, std::vector<std::string>>;
 
 inline support_result device_supports_extensions(cl::Device device, auto ext_start, auto ext_finish) {
-  const auto               supported_extensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
+  const auto supported_extensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
   std::vector<std::string> missing_extensions;
 
   for (; ext_start != ext_finish; ++ext_start) {
@@ -91,7 +91,7 @@ inline support_result device_supports_extensions(cl::Device device, auto ext_sta
 class platform_selector {
 protected:
   cl::Platform m_platform;
-  cl::Device   m_device;
+  cl::Device m_device;
 
 public:
   static constexpr auto default_pred = [](auto) { return true; };

@@ -48,10 +48,10 @@ std::string substitute_type(std::string input) {
 }
 
 class vecadd : private clutils::platform_selector {
-  cl::Context      m_ctx;
+  cl::Context m_ctx;
   cl::CommandQueue m_queue;
 
-  cl::Program                                           m_program;
+  cl::Program m_program;
   cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer> m_functor;
 
 public:
@@ -78,7 +78,7 @@ public:
     cl::copy(m_queue, spa.begin(), spa.end(), abuf);
     cl::copy(m_queue, spb.begin(), spb.end(), bbuf);
 
-    cl::NDRange     global = {size};
+    cl::NDRange global = {size};
     cl::EnqueueArgs args = {m_queue, global};
 
     auto evnt = m_functor(args, abuf, bbuf, cbuf);
@@ -100,7 +100,7 @@ public:
 int main(int argc, char *argv[]) try {
   po::options_description desc("Available options");
 
-  int      lower, upper;
+  int lower, upper;
   unsigned count;
   desc.add_options()("help,h", "Print this help message")("lower,l", po::value<int>(&lower)->default_value(0),
                                                           "Low bound for random integer")(
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) try {
   };
 
   std::random_device rnd_device;
-  std::mt19937       mersenne_engine{rnd_device()};
+  std::mt19937 mersenne_engine{rnd_device()};
 
   std::uniform_int_distribution<TYPE__> dist{lower, upper};
 

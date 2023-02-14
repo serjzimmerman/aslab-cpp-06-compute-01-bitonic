@@ -21,13 +21,6 @@
 #include <stdexcept>
 #include <string>
 
-#define STRINGIFY0(v) #v
-#define STRINGIFY(v) STRINGIFY0(v)
-
-#ifndef TYPE__
-#define TYPE__ int
-#endif
-
 namespace bitonic {
 
 template <typename T> struct i_bitonic_sort {
@@ -51,12 +44,12 @@ template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
         int seq_len = 1 << (stage + 1);
         int pow_of_two = 1 << (step - stage);
         for (int i = 0; i < size; ++i) {
-          int  seq_n = i / seq_len;
-          int  odd = seq_n / pow_of_two;
+          int seq_n = i / seq_len;
+          int odd = seq_n / pow_of_two;
           bool increasing = ((odd % 2) == 0);
-          int  halflen = seq_len / 2;
+          int halflen = seq_len / 2;
           if (i < (seq_len * seq_n) + halflen) {
-            int   j = i + halflen;
+            int j = i + halflen;
             auto &x = container[i];
             auto &y = container[j];
             if (((x > y) && increasing) || ((x < y) && !increasing)) std::swap(x, y);
@@ -69,7 +62,7 @@ template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
 
 template <typename T> class gpu_bitonic : public i_bitonic_sort<T>, protected clutils::platform_selector {
 protected:
-  cl::Context      m_ctx;
+  cl::Context m_ctx;
   cl::CommandQueue m_queue;
 
   static constexpr clutils::platform_version cl_api_version = {2, 2};
@@ -90,7 +83,7 @@ protected:
   }
 };
 
-template <typename T> class naive_bitonic : public gpu_bitonic<T> {
+template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<T> {
   struct kernel {
     using functor_type = cl::KernelFunctor<cl::Buffer, int, int>;
     static std::string source(std::string type) {
@@ -122,13 +115,13 @@ template <typename T> class naive_bitonic : public gpu_bitonic<T> {
   };
 
 private:
-  cl::Program          m_program;
+  cl::Program m_program;
   kernel::functor_type m_functor;
   using gpu_bitonic<T>::m_queue;
 
 public:
   naive_bitonic()
-      : gpu_bitonic<T>{}, m_program{gpu_bitonic<T>::m_ctx, kernel::source(STRINGIFY(TYPE__)), true},
+      : gpu_bitonic<T>{}, m_program{gpu_bitonic<T>::m_ctx, kernel::source(t_name::name_str), true},
         m_functor{m_program, kernel::entry()} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {

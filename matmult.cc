@@ -71,7 +71,7 @@ public:
 
 class gpu_matmult : public i_matmult, protected clutils::platform_selector {
 protected:
-  cl::Context      m_ctx;
+  cl::Context m_ctx;
   cl::CommandQueue m_queue;
 
 protected:
@@ -142,7 +142,7 @@ class naive_matmult : public gpu_matmult {
   };
 
 private:
-  cl::Program          m_program;
+  cl::Program m_program;
   kernel::functor_type m_functor;
 
 public:
@@ -212,7 +212,7 @@ class tiled_matmult : public gpu_matmult {
   };
 
 private:
-  cl::Program          m_program;
+  cl::Program m_program;
   kernel::functor_type m_functor;
 
   unsigned m_tile_size;
@@ -295,7 +295,7 @@ class tiled_arbitrary_matmult : public gpu_matmult {
   };
 
 private:
-  cl::Program          m_program;
+  cl::Program m_program;
   kernel::functor_type m_functor;
 
   unsigned m_tile_size;
@@ -330,7 +330,7 @@ public:
 int main(int argc, char *argv[]) try {
   po::options_description desc("Available options");
 
-  TYPE__   lower, upper;
+  TYPE__ lower, upper;
   unsigned ax, ay, by, lsz;
 
   std::string kernel_name;
