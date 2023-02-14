@@ -338,7 +338,7 @@ int main(int argc, char *argv[]) try {
       "Number of rows in matrix A")("ay", po::value<unsigned>(&ay)->default_value(512), "Number of cols in matrix A")(
       "by", po::value<unsigned>(&by)->default_value(512), "Number of cols in matrix B")(
       "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
-      "Which kernel to use: naive, tiled, arbtiled")("lsz", po::value<unsigned>(&lsz)->default_value(8),
+      "Which kernel to use: naive, tiled, tiledarb")("lsz", po::value<unsigned>(&lsz)->default_value(8),
                                                      "Local iteration size");
 
   po::variables_map vm;
@@ -363,7 +363,10 @@ int main(int argc, char *argv[]) try {
     return EXIT_FAILURE;
   }
 
+  const auto print_sep = []() { std::cout << " -------- \n"; };
   std::cout << "Multiplying A [" << ax << " x " << ay << "] by B [" << ay << " x " << by << "]\n";
+  print_sep();
+
   matrix_type a{ax, ay}, b{ay, by};
 
   auto random_filler = clutils::create_random_number_generator<matrix_type::value_type>(lower, upper);
@@ -399,6 +402,8 @@ int main(int argc, char *argv[]) try {
 
   std::cout << "GPU wall time: " << prof_info.wall.count() << " ms\n";
   std::cout << "GPU pure time: " << prof_info.pure.count() << " ms\n";
+
+  print_sep();
 
   const auto validate_results = [&c, &res, &a, &b]() {
     if (c == res) {
