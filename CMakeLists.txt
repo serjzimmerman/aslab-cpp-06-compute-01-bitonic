@@ -20,8 +20,6 @@ else()
   add_compile_options(-Wall -Wextra)
 endif()
 
-add_compile_options(-O2)
-
 find_package(GTest)
 set(NOGTEST OFF CACHE BOOL "Disable GoogleTest")
 
