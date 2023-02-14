@@ -32,7 +32,7 @@ using vector_type = std::vector<TYPE__>;
 
 namespace po = boost::program_options;
 
-template <typename T> void vprint(const std::string title, const std::vector<T> &vec) {
+void vprint(const std::string title, const auto &vec) {
   std::cout << title << ": { ";
   for (auto &elem : vec) {
     std::cout << elem << " ";
@@ -40,8 +40,7 @@ template <typename T> void vprint(const std::string title, const std::vector<T> 
   std::cout << "}\n";
 }
 
-template <typename T>
-int validate_results(const std::vector<T> &origin, const std::vector<T> &res, const std::vector<T> &check) {
+int validate_results(const auto &origin, const auto &res, const auto &check) {
   if (std::equal(res.begin(), res.end(), check.begin())) {
     std::cout << "Bitonic sort works fine\n";
     return EXIT_SUCCESS;
@@ -69,8 +68,8 @@ int main(int argc, char **argv) try {
   desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")("skip,s", "Skip std sort")(
       "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Lower bound for random number")(
       "upper,u", po::value<TYPE__>(&upper)->default_value(100), "Upper bound for random number")(
-      "num,n", po::value<unsigned>(&num)->default_value(16777216), "Random numbers' count. Should be a power of 2")(
-      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"), "Which kernel to use: naive");
+      "num,n", po::value<unsigned>(&num)->default_value(24), "Size of the vector is equal to 2^n")(
+      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"), "Which kernel to use: naive, cpu");
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
@@ -82,18 +81,25 @@ int main(int argc, char **argv) try {
     return EXIT_SUCCESS;
   }
 
+  const auto size = (1 << num);
   std::unique_ptr<bitonic::i_bitonic_sort<TYPE__>> sorter;
 
   if (kernel_name == "naive") {
     sorter = std::make_unique<bitonic::naive_bitonic<TYPE__, type_name<TYPE__>>>();
+  } else if (kernel_name == "cpu") {
+    sorter = std::make_unique<bitonic::cpu_bitonic_sort<TYPE__>>();
   } else {
     std::cout << "Unknown type of kernel: " << kernel_name << "\n ";
     return EXIT_FAILURE;
   }
 
-  std::cout << "Sorting vector of size " << num << "...\n";
+  const auto print_sep = []() { std::cout << " -------- \n"; };
+
+  std::cout << "Sorting vector of size = " << size << "\n";
+  print_sep();
+
   vector_type origin;
-  origin.resize(num);
+  origin.resize(size);
 
   auto rand_gen = clutils::create_random_number_generator<TYPE__>(lower, upper);
   rand_gen(origin);
@@ -114,8 +120,11 @@ int main(int argc, char **argv) try {
   sorter->sort(vec, &prof_info);
 
   if (!skip_std_sort) std::cout << "std::sort wall time: " << wall.count() << " ms\n";
-  std::cout << "GPU wall time: " << prof_info.gpu_wall.count() << " ms\n";
-  std::cout << "GPU pure time: " << prof_info.gpu_pure.count() << " ms\n";
+
+  std::cout << "bitonic wall time: " << prof_info.wall.count() << " ms\n";
+  std::cout << "bitonic pure time: " << prof_info.pure.count() << " ms\n";
+
+  print_sep();
 
   if (skip_std_sort) return EXIT_SUCCESS;
   return validate_results(origin, vec, check);

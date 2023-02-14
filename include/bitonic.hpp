@@ -29,34 +29,45 @@ template <typename T> struct i_bitonic_sort {
   virtual ~i_bitonic_sort() {}
 };
 
-template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
-
+template <typename T> struct cpu_bitonic_sort : public i_bitonic_sort<T> {
   // start, finish - 2^n range of elements to sort
-  void operator()(std::span<T> container, clutils::profiling_info *) override {
+  void operator()(std::span<T> container, clutils::profiling_info *info) override {
     unsigned size = container.size();
     if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
 
-    // for 2^n sequence of elements there are n steps
-    int steps_n = std::countr_zero(size);
-    for (int step = 0; step < steps_n; ++step) {
-      int stage_n = step; // i'th step consists of i stages
-      for (int stage = stage_n; stage >= 0; --stage) {
-        int seq_len = 1 << (stage + 1);
-        int pow_of_two = 1 << (step - stage);
-        for (int i = 0; i < size; ++i) {
-          int seq_n = i / seq_len;
-          int odd = seq_n / pow_of_two;
-          bool increasing = ((odd % 2) == 0);
-          int halflen = seq_len / 2;
-          if (i < (seq_len * seq_n) + halflen) {
-            int j = i + halflen;
-            auto &x = container[i];
-            auto &y = container[j];
-            if (((x > y) && increasing) || ((x < y) && !increasing)) std::swap(x, y);
-          }
+    const auto execute_step = [container, size](unsigned step, unsigned stage) {
+      const auto seq_len = 1 << (stage + 1);
+      const auto pow_of_two = 1 << (step - stage);
+
+      for (unsigned i = 0; i < size; ++i) {
+        const auto seq_n = i / seq_len;
+        const auto odd = seq_n / pow_of_two;
+
+        bool increasing = ((odd % 2) == 0);
+
+        const auto halflen = seq_len / 2;
+        if (i < (seq_len * seq_n) + halflen) {
+          const auto j = i + halflen;
+          auto &x = container[i];
+          auto &y = container[j];
+
+          if (((x > y) && increasing) || ((x < y) && !increasing)) std::swap(x, y);
         }
       }
+    };
+
+    const auto wall_start = std::chrono::high_resolution_clock::now();
+    // for 2^n sequence of elements there are n steps
+    unsigned steps_n = std::countr_zero(size);
+    for (unsigned step = 0; step < steps_n; ++step) {
+      // i'th step consists of i stages
+      for (int stage = step; stage >= 0; --stage) {
+        execute_step(step, stage);
+      }
     }
+    const auto wall_end = std::chrono::high_resolution_clock::now();
+
+    if (info) info->wall = info->pure = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
   }
 };
 
@@ -118,6 +129,7 @@ private:
   cl::Program m_program;
   kernel::functor_type m_functor;
   using gpu_bitonic<T>::m_queue;
+  using gpu_bitonic<T>::run_boilerplate;
 
 public:
   naive_bitonic()
@@ -150,15 +162,15 @@ public:
     };
 
     auto wall_start = std::chrono::high_resolution_clock::now();
-    gpu_bitonic<T>::run_boilerplate(container, func);
+    run_boilerplate(container, func);
     auto wall_end = std::chrono::high_resolution_clock::now();
 
     std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
         pure_end{prev_event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
 
     if (time) {
-      time->gpu_wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
-      time->gpu_pure = std::chrono::duration_cast<std::chrono::milliseconds>(pure_end - pure_start);
+      time->wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+      time->pure = std::chrono::duration_cast<std::chrono::milliseconds>(pure_end - pure_start);
     }
   }
 };

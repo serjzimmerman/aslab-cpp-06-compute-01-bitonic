@@ -53,11 +53,7 @@ struct ndrange_query {
   cl::NDRange global, local;
 };
 
-struct profiling_info {
-  std::chrono::milliseconds gpu_pure;
-  std::chrono::milliseconds gpu_wall;
-};
-
+using clutils::profiling_info;
 class i_matmult {
 public:
   virtual matrix_type operator()(const matrix_type &, const matrix_type &, profiling_info *) = 0;
@@ -401,8 +397,8 @@ int main(int argc, char *argv[]) try {
     std::cout << "CPU wall time: " << wall.count() << " ms\n";
   }
 
-  std::cout << "GPU wall time: " << prof_info.gpu_wall.count() << " ms\n";
-  std::cout << "GPU pure time: " << prof_info.gpu_pure.count() << " ms\n";
+  std::cout << "GPU wall time: " << prof_info.wall.count() << " ms\n";
+  std::cout << "GPU pure time: " << prof_info.pure.count() << " ms\n";
 
   const auto validate_results = [&c, &res, &a, &b]() {
     if (c == res) {

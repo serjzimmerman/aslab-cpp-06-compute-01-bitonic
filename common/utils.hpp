@@ -50,8 +50,7 @@ template <class T> inline std::size_t sizeof_container(const T &container) {
 }
 
 struct profiling_info {
-  std::chrono::milliseconds gpu_pure;
-  std::chrono::milliseconds gpu_wall;
+  std::chrono::milliseconds pure, wall;
 };
 
 } // namespace clutils
