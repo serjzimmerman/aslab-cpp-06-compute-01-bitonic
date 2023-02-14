@@ -27,8 +27,9 @@ namespace po = boost::program_options;
 
 template <typename T> void vprint(const std::string title, const std::vector<T> &vec) {
   std::cout << title << ": { ";
-  for (auto &elem : vec)
+  for (auto &elem : vec) {
     std::cout << elem << " ";
+  }
   std::cout << "}\n";
 }
 
@@ -39,46 +40,24 @@ int validate_results(const std::vector<T> &origin, const std::vector<T> &res, co
     return EXIT_SUCCESS;
   } else {
     std::cout << "Bitonic sort is broken\n";
-    vprint("Origin", origin);
+    vprint("Original", origin);
     vprint("Result", res);
     vprint("Correct", check);
     return EXIT_FAILURE;
   }
 }
 
-template <typename T> auto create_random_number_generator(T lower, T upper) {
-  std::random_device rnd_device;
-  std::mt19937       mersenne_engine{rnd_device()};
-
-  if constexpr (std::is_floating_point_v<T>) {
-    std::uniform_real_distribution<T> dist{lower, upper};
-
-    return [dist, mersenne_engine](auto &vec) mutable {
-      std::generate(vec.begin(), vec.end(), [&]() { return dist(mersenne_engine); });
-    };
-  }
-
-  else {
-    std::uniform_int_distribution<T> dist{lower, upper};
-
-    return [dist, mersenne_engine](auto &vec) mutable {
-      std::generate(vec.begin(), vec.end(), [&]() { return dist(mersenne_engine); });
-    };
-  }
-}
-
-
 int main(int argc, char **argv) try {
   po::options_description desc("Avaliable options");
 
-  TYPE__   lower{}, upper{};
-  unsigned num{};
+  TYPE__   lower, upper;
+  unsigned num;
 
   std::string kernel_name;
   desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")("skip,s", "Skip std sort")(
       "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Lower bound for random number")(
-      "upper,u", po::value<TYPE__>(&upper)->default_value(100),
-      "Upper bound for random number")("num,n", po::value<unsigned>(&num)->default_value(16777216), "Random numbers' count. Should be a power of 2")(
+      "upper,u", po::value<TYPE__>(&upper)->default_value(100), "Upper bound for random number")(
+      "num,n", po::value<unsigned>(&num)->default_value(16777216), "Random numbers' count. Should be a power of 2")(
       "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"), "Which kernel to use: naive");
 
   po::variables_map vm;
@@ -103,7 +82,7 @@ int main(int argc, char **argv) try {
   std::cout << "Sorting vector of size " << num << "...\n";
   std::vector<TYPE__> origin(num);
 
-  auto rand_gen = create_random_number_generator<TYPE__>(lower, upper);
+  auto rand_gen = clutils::create_random_number_generator<TYPE__>(lower, upper);
   rand_gen(origin);
 
   std::chrono::milliseconds wall{};

@@ -31,10 +31,9 @@
 namespace bitonic {
 
 template <typename T> struct i_bitonic_sort {
-  virtual ~i_bitonic_sort() {}
-
   void sort(std::span<T> container, clutils::profiling_info *time = nullptr) { return operator()(container, time); }
   virtual void operator()(std::span<T>, clutils::profiling_info *) = 0;
+  virtual ~i_bitonic_sort() {}
 };
 
 template <typename T> struct simple_bitonic_sort : public i_bitonic_sort<T> {
@@ -80,18 +79,14 @@ protected:
 
   using func_signature = cl::Event(cl::Buffer);
 
-  void run_boilerplate(std::span<T> container, std::function<func_signature> func, clutils::profiling_info *time) {
-
+  void run_boilerplate(std::span<T> container, std::function<func_signature> func) {
     cl::Buffer buff = {m_ctx, CL_MEM_READ_WRITE, clutils::sizeof_container(container)};
     cl::copy(m_queue, container.begin(), container.end(), buff);
+
     auto event = func(buff);
     event.wait();
-    cl::copy(m_queue, buff, container.begin(), container.end());
 
-    std::chrono::nanoseconds pure_start{event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
-        pure_end{event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
-    auto pure = std::chrono::duration_cast<std::chrono::milliseconds>(pure_end - pure_start);
-    if (time) time->gpu_pure += pure;
+    cl::copy(m_queue, buff, container.begin(), container.end());
   }
 };
 
@@ -129,6 +124,7 @@ template <typename T> class naive_bitonic : public gpu_bitonic<T> {
 private:
   cl::Program          m_program;
   kernel::functor_type m_functor;
+  using gpu_bitonic<T>::m_queue;
 
 public:
   naive_bitonic()
@@ -136,26 +132,41 @@ public:
         m_functor{m_program, kernel::entry()} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
-    unsigned size = container.size();
+    unsigned size = container.size(), steps_n = std::countr_zero(size);
     if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
-    int steps_n = std::countr_zero(size);
+    cl::Event prev_event, first_event;
+
+    const auto func = [&, steps_n](auto buf) {
+      for (unsigned step = 0; step < steps_n; ++step) {
+        for (int stage = step; stage >= 0; --stage) {
+          auto submit = [&, first_iter = true, size = container.size()]() mutable {
+            if (first_iter) {
+              first_iter = false;
+              auto args = cl::EnqueueArgs{m_queue, size};
+              first_event = prev_event = m_functor(args, buf, step, stage);
+            } else {
+              auto args = cl::EnqueueArgs{m_queue, prev_event, size};
+              prev_event = m_functor(args, buf, step, stage);
+            }
+          };
+          submit();
+        }
+      }
+
+      return prev_event;
+    };
 
     auto wall_start = std::chrono::high_resolution_clock::now();
-
-    for (int step = 0; step < steps_n; ++step) {
-      int stage_n = step;
-      for (int stage = stage_n; stage >= 0; --stage) {
-        const auto func = [&](auto buf) {
-          cl::EnqueueArgs args = {gpu_bitonic<T>::m_queue, {container.size()}};
-          return m_functor(args, buf, step, stage);
-        };
-        gpu_bitonic<T>::run_boilerplate(container, func, time);
-      }
-    }
-
+    gpu_bitonic<T>::run_boilerplate(container, func);
     auto wall_end = std::chrono::high_resolution_clock::now();
 
-    if (time) time->gpu_wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+    std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
+        pure_end{prev_event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+
+    if (time) {
+      time->gpu_wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+      time->gpu_pure = std::chrono::duration_cast<std::chrono::milliseconds>(pure_end - pure_start);
+    }
   }
 };
 } // namespace bitonic

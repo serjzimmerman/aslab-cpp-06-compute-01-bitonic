@@ -327,27 +327,6 @@ public:
 
 } // namespace app
 
-template <typename T> auto create_random_number_generator(T lower, T upper) {
-  std::random_device rnd_device;
-  std::mt19937       mersenne_engine{rnd_device()};
-
-  if constexpr (std::is_floating_point_v<T>) {
-    std::uniform_real_distribution<T> dist{lower, upper};
-
-    return [dist, mersenne_engine](auto &vec) mutable {
-      std::generate(vec.begin(), vec.end(), [&]() { return dist(mersenne_engine); });
-    };
-  }
-
-  else {
-    std::uniform_int_distribution<T> dist{lower, upper};
-
-    return [dist, mersenne_engine](auto &vec) mutable {
-      std::generate(vec.begin(), vec.end(), [&]() { return dist(mersenne_engine); });
-    };
-  }
-}
-
 int main(int argc, char *argv[]) try {
   po::options_description desc("Available options");
 
@@ -391,7 +370,7 @@ int main(int argc, char *argv[]) try {
   std::cout << "Multiplying A [" << ax << " x " << ay << "] by B [" << ay << " x " << by << "]\n";
   matrix_type a{ax, ay}, b{ay, by};
 
-  auto random_filler = create_random_number_generator<matrix_type::value_type>(lower, upper);
+  auto random_filler = clutils::create_random_number_generator<matrix_type::value_type>(lower, upper);
   random_filler(a);
   random_filler(b);
 
