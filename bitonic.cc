@@ -62,14 +62,15 @@ int main(int argc, char **argv) try {
   po::options_description desc("Avaliable options");
 
   TYPE__ lower, upper;
-  unsigned num;
+  unsigned num, lsz;
 
   std::string kernel_name;
   desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")("skip,s", "Skip std sort")(
-      "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Lower bound for random number")(
-      "upper,u", po::value<TYPE__>(&upper)->default_value(100), "Upper bound for random number")(
-      "num,n", po::value<unsigned>(&num)->default_value(24), "Size of the vector is equal to 2^n")(
-      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"), "Which kernel to use: naive, cpu");
+      "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Lower bound for random integers")(
+      "upper,u", po::value<TYPE__>(&upper)->default_value(100), "Upper bound for random integers")(
+      "num,n", po::value<unsigned>(&num)->default_value(24), "n dor 2^n length vector of integers")(
+      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
+      "Which kernel to use: naive, cpu")("lsz", po::value<unsigned>(&lsz)->default_value(8), "Local iteration size");
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
@@ -88,6 +89,8 @@ int main(int argc, char **argv) try {
     sorter = std::make_unique<bitonic::naive_bitonic<TYPE__, type_name<TYPE__>>>();
   } else if (kernel_name == "cpu") {
     sorter = std::make_unique<bitonic::cpu_bitonic_sort<TYPE__>>();
+  } else if (kernel_name == "local") {
+    sorter = std::make_unique<bitonic::local_bitonic<TYPE__, type_name<TYPE__>>>(lsz);
   } else {
     std::cout << "Unknown type of kernel: " << kernel_name << "\n ";
     return EXIT_FAILURE;

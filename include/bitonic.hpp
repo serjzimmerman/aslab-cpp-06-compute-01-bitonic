@@ -174,4 +174,94 @@ public:
     }
   }
 };
+
+template <typename T, typename t_name> class local_bitonic : public gpu_bitonic<T> {
+  struct kernel_presort {
+    using functor_type = cl::KernelFunctor<cl::Buffer, int, int>;
+    static std::string source(std::string type, unsigned local_size) {
+      static const std::string naive_source = R"(
+      __kernel void local_presort (__global TYPE *buff, int step_start, int step_end) {
+        int global_i = get_global_id(0);
+        int local_i = get_local_id(0);
+        __local segment [SEGMENT_SIZE];
+        segment[local_i] = buff[global_i];
+        barrier(CLK_LOCAL_MEM_FENCE);
+        const int i = local_i;
+        for (int step = step_start; step < step_end; ++step) {
+          for (int stage = step; stage >=0 ; --stage) {
+            int seq_len = 1 << (stage + 1);
+            int power_of_two = 1 << (step - stage);
+            int seq_n = i / seq_len;
+
+            // direction determined by global position, not local
+            int odd = (global_i / seq_len) / power_of_two;
+            bool increasing = ((odd % 2) == 0);
+            int halflen = seq_len / 2;
+
+            if (i < (seq_len * seq_n) + halflen){
+              int   j = i + halflen;
+              if (((segment[i] > segment[j]) && increasing) ||
+                  ((segment[i] < segment[j]) && !increasing)) {
+                TYPE tmp = segment[i];
+                segment[i] = segment[j];
+                segment[j] = tmp;
+              }
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+          }
+        }
+        buff[global_i] = segment[local_i];
+      })";
+
+      auto type_macro_def = clutils::kernel_define("TYPE", type);
+      auto local_size_macro_def = clutils::kernel_define("SEGMENT_SIZE", local_size);
+      return type_macro_def + local_size_macro_def + naive_source;
+    }
+
+    static std::string entry() { return "local_presort"; }
+  };
+
+private:
+  cl::Program m_program;
+  kernel_presort::functor_type m_functor;
+  using gpu_bitonic<T>::m_queue;
+  using gpu_bitonic<T>::run_boilerplate;
+
+  unsigned m_local_size{};
+
+public:
+  local_bitonic(const unsigned segment_size)
+      : gpu_bitonic<T>{}, m_program{gpu_bitonic<T>::m_ctx, kernel_presort::source(t_name::name_str, segment_size),
+                                    true},
+        m_functor{m_program, kernel_presort::entry()}, m_local_size{segment_size} {}
+
+  void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
+    unsigned size = container.size(), steps_n = std::countr_zero(size), nfst = std::countr_zero(m_local_size);
+    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
+    cl::Event prev_event, first_event;
+
+    auto submit = [&, first_iter = true, size = container.size()](auto buf) mutable {
+      auto args = cl::EnqueueArgs{m_queue, size, m_local_size};
+      first_event = prev_event = m_functor(args, buf, 0, std::min(nfst - 1, steps_n));
+    };
+
+    const auto func = [&](auto buf) {
+      submit(buf);
+      return prev_event;
+    };
+
+    auto wall_start = std::chrono::high_resolution_clock::now();
+    run_boilerplate(container, func);
+    auto wall_end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
+        pure_end{prev_event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+
+    if (time) {
+      time->wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+      time->pure = std::chrono::duration_cast<std::chrono::milliseconds>(pure_end - pure_start);
+    }
+  }
+};
+
 } // namespace bitonic
