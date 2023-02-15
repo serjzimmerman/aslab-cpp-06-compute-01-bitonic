@@ -74,6 +74,7 @@ template <typename T> class gpu_bitonic : public i_bitonic_sort<T>, protected cl
 protected:
   cl::Context m_ctx;
   cl::CommandQueue m_queue;
+  using typename i_bitonic_sort<T>::size_type;
 
   static constexpr clutils::platform_version cl_api_version = {2, 2};
 
@@ -126,35 +127,40 @@ template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<
 
 private:
   cl::Program m_program;
+
   typename kernel::functor_type m_functor;
+
   using gpu_bitonic<T>::m_queue;
+  using gpu_bitonic<T>::m_ctx;
   using gpu_bitonic<T>::run_boilerplate;
+
+  using typename gpu_bitonic<T>::size_type;
 
 public:
   naive_bitonic()
-      : gpu_bitonic<T>{}, m_program{gpu_bitonic<T>::m_ctx, kernel::source(t_name::name_str), true},
-        m_functor{m_program, kernel::entry()} {}
+      : gpu_bitonic<T>{}, m_program{m_ctx, kernel::source(t_name::name_str), true}, m_functor{m_program,
+                                                                                              kernel::entry()} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
-    unsigned size = container.size(), steps_n = std::countr_zero(size);
+    const size_type size = container.size(), stages = std::countr_zero(size);
     if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
     cl::Event prev_event, first_event;
 
-    auto submit = [&, first_iter = true, size = container.size()](auto buf, auto step, auto stage) mutable {
+    auto submit = [&, first_iter = true, size = container.size()](auto buf, auto stage, auto step) mutable {
       if (first_iter) {
         first_iter = false;
         auto args = cl::EnqueueArgs{m_queue, size};
-        first_event = prev_event = m_functor(args, buf, step, stage);
+        first_event = prev_event = m_functor(args, buf, stage, step);
       } else {
         auto args = cl::EnqueueArgs{m_queue, prev_event, size};
-        prev_event = m_functor(args, buf, step, stage);
+        prev_event = m_functor(args, buf, stage, step);
       }
     };
 
-    const auto func = [&, steps_n](auto buf) {
-      for (unsigned step = 0; step < steps_n; ++step) {
-        for (int stage = step; stage >= 0; --stage) {
-          submit(buf, step, stage);
+    const auto func = [&, stages](auto buf) {
+      for (unsigned stage = 0; stage < stages; ++stage) {
+        for (int step = stage; step >= 0; --step) {
+          submit(buf, stage, step);
         }
       }
       return prev_event;
