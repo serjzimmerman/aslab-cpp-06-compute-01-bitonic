@@ -31,6 +31,10 @@
 
 #include "linmath/contiguous_matrix.hpp"
 
+#include "kernelhpp/matmult_naive_kernel.hpp"
+#include "kernelhpp/matmult_tiled_arb_kernel.hpp"
+#include "kernelhpp/matmult_tiled_kernel.hpp"
+
 #define STRINGIFY0(v) #v
 #define STRINGIFY(v) STRINGIFY0(v)
 
@@ -112,30 +116,7 @@ protected:
 };
 
 class naive_matmult : public gpu_matmult {
-  struct kernel {
-    using functor_type = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer, cl_int, cl_int, cl_int>;
-
-    static std::string source(std::string type) {
-      static const std::string naive_source =
-          R"(
-      __kernel void naive(__global TYPE *A, __global TYPE *B, __global TYPE *C, int AX, int AY, int BY) {
-        int i = get_global_id(0);
-        int j = get_global_id(1);
-
-        TYPE sum = 0;
-        for (int k = 0; k < AY; ++k) {
-          sum += A[i * AY + k] * B[k * BY + j];
-        }
-
-        C[i * BY + j] = sum;
-      })";
-
-      auto type_macro_def = clutils::kernel_define("TYPE", type);
-      return type_macro_def + naive_source;
-    }
-
-    static std::string entry() { return "naive"; }
-  };
+  using kernel = matmult_naive_kernel;
 
 private:
   cl::Program m_program;
@@ -156,56 +137,7 @@ public:
 };
 
 class tiled_matmult : public gpu_matmult {
-  struct kernel {
-    using functor_type = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer, cl_int, cl_int, cl_int>;
-
-    static std::string source(std::string type, unsigned local_size) {
-      static const std::string matmult_tiled =
-          R"(
-      __kernel void tiled(__global TYPE *A, __global TYPE *B, __global TYPE *C, int AX, int AY, int BY) {
-        int tile_row = get_group_id(0);
-        int tile_col = get_group_id(1);
-
-        int local_row = get_local_id(0);
-        int local_col = get_local_id(1);
-
-        __local tile_A[TILE_SIZE * TILE_SIZE];
-        __local tile_B[TILE_SIZE * TILE_SIZE];
-        
-        int global_row = TILE_SIZE * tile_row + local_row;
-        int global_col = TILE_SIZE * tile_col + local_col;
-
-        int tile_count = AY / TILE_SIZE;
-        TYPE sum = 0;
-        
-        for (int t = 0; t < tile_count; ++t) {
-          // Step 1. Here each work group thread is responsible for copying data into the corresponding slot in the tile_A, tile_B
-          tile_A[local_row * TILE_SIZE + local_col] = A[global_row * AY + t * TILE_SIZE + local_col];
-          tile_B[local_row * TILE_SIZE + local_col] = B[BY * (t * TILE_SIZE + local_row) + global_col];
-          
-          // Barrier here to finish loading all the data before proceeding.
-          barrier(CLK_LOCAL_MEM_FENCE);
-          
-          // Step 2. Calculate part of the resulting tile corresponding to this thread and accumulate it in sum.
-          for (int k = 0; k < TILE_SIZE; ++k) {
-            sum += tile_A[TILE_SIZE * local_row + k] * tile_B[k * TILE_SIZE + local_col];
-          }
-          
-          // Wait for all threads to finish before reloading new tiles.
-          barrier(CLK_LOCAL_MEM_FENCE);
-        }
-
-        C[global_row * BY + global_col] = sum;
-      })";
-
-      auto type_macro_def = clutils::kernel_define("TYPE", type);
-      auto local_size_macro_def = clutils::kernel_define("TILE_SIZE", local_size);
-
-      return type_macro_def + local_size_macro_def + matmult_tiled;
-    }
-
-    static std::string entry() { return "tiled"; }
-  };
+  using kernel = matmult_tiled_kernel;
 
 private:
   cl::Program m_program;
@@ -233,62 +165,7 @@ public:
 };
 
 class tiled_arbitrary_matmult : public gpu_matmult {
-  struct kernel {
-    using functor_type = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer, cl_int, cl_int, cl_int, cl_int>;
-
-    static std::string source(std::string type, unsigned local_size) {
-      static const std::string tiled_arbitrary_size =
-          R"(
-      __kernel void tiled_arbitrary(__global TYPE *A, __global TYPE *B, __global TYPE *C, int AX, int AY, int BY, int tile_count) {
-        int tile_row = get_group_id(0);
-        int tile_col = get_group_id(1);
-
-        int local_row = get_local_id(0);
-        int local_col = get_local_id(1);
-
-        __local tile_A[TILE_SIZE * TILE_SIZE];
-        __local tile_B[TILE_SIZE * TILE_SIZE];
-
-        int global_row = TILE_SIZE * tile_row + local_row;
-        int global_col = TILE_SIZE * tile_col + local_col;
-
-        int row_out_of_bounds = (global_row >= AX);
-        int col_out_of_bounds = (global_col >= BY);
-
-        TYPE sum = 0;
-
-        for (int t = 0; t < tile_count; ++t) {
-          // Step 1. Here each work group thread is responsible for copying data into the corresponding slot in the tile_A, tile_B
-          int curr_tiled_col = t * TILE_SIZE + local_col;
-          int curr_tiled_row = t * TILE_SIZE + local_row;
-
-          tile_A[local_row * TILE_SIZE + local_col] = ((curr_tiled_col >= AY || row_out_of_bounds) ? 0 : A[global_row * AY + curr_tiled_col]);
-          tile_B[local_row * TILE_SIZE + local_col] = ((curr_tiled_row >= AY || col_out_of_bounds) ? 0 : B[BY * curr_tiled_row + global_col]);
-
-          // Barrier here to finish loading all the data before proceeding.
-          barrier(CLK_LOCAL_MEM_FENCE);
-
-          // Step 2. Calculate part of the resulting tile corresponding to this thread and accumulate it in sum.
-          for (int k = 0; k < TILE_SIZE; ++k) {
-            sum += tile_A[TILE_SIZE * local_row + k] * tile_B[k * TILE_SIZE + local_col];
-          }
-
-          // Wait for all threads to finish before reloading new tiles.
-          barrier(CLK_LOCAL_MEM_FENCE);
-        }
-
-        if (row_out_of_bounds || col_out_of_bounds) return;
-        C[global_row * BY + global_col] = sum;
-      })";
-
-      auto type_macro_def = clutils::kernel_define("TYPE", type);
-      auto local_size_macro_def = clutils::kernel_define("TILE_SIZE", local_size);
-
-      return type_macro_def + local_size_macro_def + tiled_arbitrary_size;
-    }
-
-    static std::string entry() { return "tiled_arbitrary"; }
-  };
+  using kernel = matmult_tiled_arb_kernel;
 
 private:
   cl::Program m_program;

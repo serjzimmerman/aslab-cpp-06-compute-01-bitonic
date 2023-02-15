@@ -78,27 +78,41 @@ set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
 add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-set(COMMON_INCLUDE_DIR
-  ${CMAKE_CURRENT_SOURCE_DIR}/common
-)
+set(kernel2hpp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/kernel2hpp.py)
+set(KERNEL_HPP_DIR ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp/kernelhpp)
 
-set (INCLUDE_DIR
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+set(KERNEL_HPP_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp)
 
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
   target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL OpenCL::Headers OpenCL::HeadersCpp Boost::program_options)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
-  target_include_directories(${TARGET_NAME} PUBLIC ${COMMON_INCLUDE_DIR})
-  target_include_directories(${TARGET_NAME} PUBLIC ${INCLUDE_DIR})
+  target_include_directories(${TARGET_NAME} PUBLIC common include ${KERNEL_HPP_INCLUDE})
 endfunction()
 
 add_opencl_program(oclinfo oclinfo.cc 220)
 add_opencl_program(vadd vadd.cc 220)
 
+function(add_kernel TARGET_NAME INPUT_FILE)
+  add_custom_command(
+    OUTPUT ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp
+    COMMAND Python3::Interpreter ${kernel2hpp} -i ${INPUT_FILE} -o ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp
+    MAIN_DEPENDENCY ${INPUT_FILE}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  add_custom_target(${TARGET_NAME} ALL DEPENDS ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp)
+  set(${TARGET_NAME}_OUTPUTS ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp PARENT_SCOPE)
+endfunction()
+
 add_opencl_program(matmult matmult.cc 220)
+add_kernel(matmult_naive_kernel kernels/matmult_naive.cl)
+add_kernel(matmult_tiled_kernel kernels/matmult_tiled.cl)
+add_kernel(matmult_tiled_arb_kernel kernels/matmult_tiled_arb.cl)
+
+add_custom_target(matmult_kernels ALL DEPENDS matmult_naive_kernel matmult_tiled_kernel matmult_tiled_arb_kernel)
+add_dependencies(matmult matmult_kernels)
 target_link_libraries(matmult PUBLIC throttle)
 
 add_opencl_program(bitonic bitonic.cc 220)
