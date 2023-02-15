@@ -96,25 +96,31 @@ protected:
 
 template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<T> {
   struct kernel {
-    using functor_type = cl::KernelFunctor<cl::Buffer, int, int>;
+    using functor_type = cl::KernelFunctor<cl::Buffer, unsigned, unsigned>;
     static std::string source(std::string type) {
       static const std::string naive_source = R"(
-      __kernel void naive_bitonic (__global TYPE *buff, int step, int stage) {
-        int i = get_global_id(0);
-        int seq_len = 1 << (stage + 1);
-        int power_of_two = 1 << (step - stage);
-        int seq_n = i / seq_len;
-        int odd = seq_n / power_of_two;
-        bool increasing = ((odd % 2) == 0);
-        int halflen = seq_len / 2;
-        if (i < (seq_len * seq_n) + halflen) {
-          int   j = i + halflen;
-          if (((buff[i] > buff[j]) && increasing) ||
-              ((buff[i] < buff[j]) && !increasing)) {
-            TYPE tmp = buff[i];
-            buff[i] = buff[j];
-            buff[j] = tmp;
-          }
+      __kernel void naive_bitonic (__global TYPE *buf, uint stage, uint step) {
+        uint gid = get_global_id(0);
+
+        const uint half_length = 1 << step, part_length = half_length * 2;
+        const uint part_index = gid >> step;
+
+        const uint i = gid - part_index * half_length;
+        uint j;
+
+        if (stage == step) { // The first step in a stage
+          j = part_length - i - 1;
+        } else {
+          j = i + half_length;
+        }
+
+        const uint offset = part_index * part_length;
+        const uint first_index = offset + i, second_index = offset + j;
+
+        if (buf[first_index] > buf[second_index]) {
+          TYPE temp = buf[first_index];
+          buf[first_index] = buf[second_index];
+          buf[second_index] = temp;
         }
       })";
 
@@ -147,12 +153,13 @@ public:
     cl::Event prev_event, first_event;
 
     auto submit = [&, first_iter = true, size = container.size()](auto buf, auto stage, auto step) mutable {
+      const auto global_size = size / 2;
       if (first_iter) {
         first_iter = false;
-        auto args = cl::EnqueueArgs{m_queue, size};
+        auto args = cl::EnqueueArgs{m_queue, global_size};
         first_event = prev_event = m_functor(args, buf, stage, step);
       } else {
-        auto args = cl::EnqueueArgs{m_queue, prev_event, size};
+        auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
         prev_event = m_functor(args, buf, stage, step);
       }
     };
