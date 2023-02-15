@@ -11,7 +11,6 @@ set(CMAKE_CXX_STANDARD 20)
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 endif()
-include(FetchContent)
 
 # Possibly support windows and MSVC compiler
 if(MSVC)
@@ -76,7 +75,7 @@ add_subdirectory(3rd-party/OpenCL-ICD-Loader)
 add_subdirectory(3rd-party/OpenCL-CLHPP)
 
 set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
-add_subdirectory(linmath EXCLUDE_FROM_ALL)
+add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
 
@@ -90,7 +89,7 @@ set (INCLUDE_DIR
 
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
-  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL Boost::program_options)
+  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL OpenCL::Headers OpenCL::HeadersCpp Boost::program_options)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
   target_include_directories(${TARGET_NAME} PUBLIC ${COMMON_INCLUDE_DIR})
   target_include_directories(${TARGET_NAME} PUBLIC ${INCLUDE_DIR})
@@ -103,5 +102,3 @@ add_opencl_program(matmult matmult.cc 220)
 target_link_libraries(matmult PUBLIC throttle)
 
 add_opencl_program(bitonic bitonic.cc 220)
-
-

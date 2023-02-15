@@ -24,47 +24,46 @@
 namespace bitonic {
 
 template <typename T> struct i_bitonic_sort {
+  using size_type = unsigned;
   void sort(std::span<T> container, clutils::profiling_info *time = nullptr) { return operator()(container, time); }
   virtual void operator()(std::span<T>, clutils::profiling_info *) = 0;
   virtual ~i_bitonic_sort() {}
 };
 
 template <typename T> struct cpu_bitonic_sort : public i_bitonic_sort<T> {
-  // start, finish - 2^n range of elements to sort
+  using typename i_bitonic_sort<T>::size_type;
+
   void operator()(std::span<T> container, clutils::profiling_info *info) override {
-    unsigned size = container.size();
-    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
+    size_type size = container.size();
+    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error{"Only power-of-two sequences are supported"};
 
-    const auto execute_step = [container, size](unsigned step, unsigned stage) {
-      const auto seq_len = 1 << (stage + 1);
-      const auto pow_of_two = 1 << (step - stage);
+    const auto execute_step = [container, size](size_type stage, size_type step) {
+      const size_type part_length = 1 << (step + 1);
 
-      for (unsigned i = 0; i < size; ++i) {
-        const auto seq_n = i / seq_len;
-        const auto odd = seq_n / pow_of_two;
+      const auto calc_j = [stage, step, part_length](auto i) -> size_type {
+        if (stage == step) return part_length - i - 1;
+        return i + part_length / 2;
+      };
 
-        bool increasing = ((odd % 2) == 0);
-
-        const auto halflen = seq_len / 2;
-        if (i < (seq_len * seq_n) + halflen) {
-          const auto j = i + halflen;
-          auto &x = container[i];
-          auto &y = container[j];
-
-          if (((x > y) && increasing) || ((x < y) && !increasing)) std::swap(x, y);
+      for (size_type k = 0; k < size / part_length; ++k) {
+        for (size_type i = 0; i < part_length / 2; ++i) {
+          const auto j = calc_j(i);
+          auto &first = container[k * part_length + i];
+          auto &second = container[k * part_length + j];
+          if (first > second) std::swap(first, second);
         }
       }
     };
 
     const auto wall_start = std::chrono::high_resolution_clock::now();
-    // for 2^n sequence of elements there are n steps
-    unsigned steps_n = std::countr_zero(size);
-    for (unsigned step = 0; step < steps_n; ++step) {
-      // i'th step consists of i stages
-      for (int stage = step; stage >= 0; --stage) {
-        execute_step(step, stage);
+
+    size_type stages = std::countr_zero(size);
+    for (size_type stage = 0; stage < stages; ++stage) {
+      for (size_type temp = 0, step = stage; temp <= stage; step = stage - (++temp)) {
+        execute_step(stage, step);
       }
     }
+
     const auto wall_end = std::chrono::high_resolution_clock::now();
 
     if (info) info->wall = info->pure = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
@@ -127,7 +126,7 @@ template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<
 
 private:
   cl::Program m_program;
-  kernel::functor_type m_functor;
+  typename kernel::functor_type m_functor;
   using gpu_bitonic<T>::m_queue;
   using gpu_bitonic<T>::run_boilerplate;
 
@@ -223,7 +222,7 @@ template <typename T, typename t_name> class local_bitonic : public gpu_bitonic<
 
 private:
   cl::Program m_program;
-  kernel_presort::functor_type m_functor;
+  typename kernel_presort::functor_type m_functor;
   using gpu_bitonic<T>::m_queue;
   using gpu_bitonic<T>::run_boilerplate;
 

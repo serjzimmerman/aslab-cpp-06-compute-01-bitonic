@@ -70,7 +70,8 @@ int main(int argc, char **argv) try {
       "upper,u", po::value<TYPE__>(&upper)->default_value(100), "Upper bound for random integers")(
       "num,n", po::value<unsigned>(&num)->default_value(24), "n dor 2^n length vector of integers")(
       "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
-      "Which kernel to use: naive, cpu")("lsz", po::value<unsigned>(&lsz)->default_value(8), "Local iteration size");
+      "Which kernel to use: naive, cpu, local")("lsz", po::value<unsigned>(&lsz)->default_value(8),
+                                                "Local iteration size");
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
