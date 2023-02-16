@@ -35,6 +35,8 @@
 #include "kernelhpp/matmult_tiled_arb_kernel.hpp"
 #include "kernelhpp/matmult_tiled_kernel.hpp"
 
+#include <eigen3/Eigen/Dense>
+
 #define STRINGIFY0(v) #v
 #define STRINGIFY(v) STRINGIFY0(v)
 
@@ -45,6 +47,7 @@
 namespace po = boost::program_options;
 namespace linmath = throttle::linmath;
 
+using eigen_matrix_type = Eigen::Matrix<TYPE__, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 using matrix_type = linmath::contiguous_matrix<TYPE__>;
 
 namespace app {
@@ -200,6 +203,15 @@ public:
 
 } // namespace app
 
+namespace {
+
+eigen_matrix_type to_eigen_matrix(const matrix_type &matrix) {
+  eigen_matrix_type e = Eigen::Map<const eigen_matrix_type>(matrix.data(), matrix.rows(), matrix.cols());
+  return e;
+}
+
+} // namespace
+
 int main(int argc, char *argv[]) try {
   po::options_description desc("Available options");
 
@@ -208,8 +220,8 @@ int main(int argc, char *argv[]) try {
 
   std::string kernel_name;
   desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")(
-      "skip,s", "Skip cpu calculation")("lower,l", po::value<TYPE__>(&lower)->default_value(0),
-                                        "Low bound for random integer")(
+      "eigen,e", "Compare with Eigen matrix multiplication")("skip,s", "Skip cpu calculation")(
+      "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Low bound for random integer")(
       "upper,u", po::value<TYPE__>(&upper)->default_value(32), "Upper bound for random integer")(
       "ax", po::value<unsigned>(&ax)->default_value(512),
       "Number of rows in matrix A")("ay", po::value<unsigned>(&ay)->default_value(512), "Number of cols in matrix A")(
@@ -222,7 +234,10 @@ int main(int argc, char *argv[]) try {
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
 
-  bool skip_cpu = vm.count("skip");
+  const bool skip_cpu = vm.count("skip");
+  const bool print_on_failure = vm.count("print");
+  const bool compare_eigen = vm.count("eigen");
+
   if (vm.count("help")) {
     std::cout << desc << "\n";
     return 1;
@@ -250,14 +265,23 @@ int main(int argc, char *argv[]) try {
   random_filler(a);
   random_filler(b);
 
-  std::chrono::milliseconds wall;
+  std::chrono::milliseconds wall_cpu_naive, wall_cpu_eigen;
+
+  const auto measure_cpu_time = [](auto func) {
+    auto wall_start = std::chrono::high_resolution_clock::now();
+    func();
+    auto wall_end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+  };
 
   matrix_type c;
   if (!skip_cpu) {
-    auto wall_start = std::chrono::high_resolution_clock::now();
-    c = a * b;
-    auto wall_end = std::chrono::high_resolution_clock::now();
-    wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
+    wall_cpu_naive = measure_cpu_time([&a, &b, &c]() { c = a * b; });
+  }
+
+  if (compare_eigen) {
+    eigen_matrix_type a_e = to_eigen_matrix(a), b_e = to_eigen_matrix(b), c_e;
+    wall_cpu_eigen = measure_cpu_time([&a_e, &b_e, &c_e]() { c_e = a_e * b_e; });
   }
 
   static const auto matrix_print = [](auto name, auto &mat) {
@@ -273,30 +297,30 @@ int main(int argc, char *argv[]) try {
   app::profiling_info prof_info;
 
   auto res = mult->multiply(a, b, &prof_info);
-  if (!skip_cpu) {
-    std::cout << "CPU wall time: " << wall.count() << " ms\n";
-  }
+  if (!skip_cpu) std::cout << "CPU wall time: " << wall_cpu_naive.count() << " ms\n";
+  if (compare_eigen) std::cout << "Eigen wall time: " << wall_cpu_eigen.count() << " ms\n";
 
   std::cout << "GPU wall time: " << prof_info.wall.count() << " ms\n";
   std::cout << "GPU pure time: " << prof_info.pure.count() << " ms\n";
 
   print_sep();
 
-  const auto validate_results = [&c, &res, &a, &b]() {
+  const auto validate_results = [&c, &res, &a, &b, print_on_failure]() {
     if (c == res) {
       std::cout << "GPU matrix multiplication works fine\n";
       return EXIT_SUCCESS;
-    } else {
-      std::cout << "GPU matrix multiplication is borked\n";
-
-      matrix_print("Matrix A", a);
-      matrix_print("Matrix B", b);
-
-      matrix_print("Matrix from GPU", res);
-      matrix_print("Correct", c);
-
-      return EXIT_FAILURE;
     }
+
+    std::cout << "GPU matrix multiplication is borked\n";
+    if (!print_on_failure) return EXIT_FAILURE;
+
+    matrix_print("Matrix A", a);
+    matrix_print("Matrix B", b);
+
+    matrix_print("Matrix from GPU", res);
+    matrix_print("Correct", c);
+
+    return EXIT_FAILURE;
   };
 
   if (skip_cpu) return EXIT_SUCCESS;

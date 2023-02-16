@@ -53,6 +53,19 @@ else()
 message(WARNING "-DNOLINT option provided, linter disabled")
 endif()
 
+option(OPTIMIZE_FOR_NATIVE "Build with -march=native" ON)
+if (OPTIMIZE_FOR_NATIVE)
+  include(CheckCXXCompilerFlag)
+
+  CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+  if (COMPILER_SUPPORTS_MARCH_NATIVE)
+    message(STATUS "Compiling with -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+  else()
+    message(WARNING "Compiler does not support -march=native")
+  endif()
+endif()
+
 set(DCMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_program(BASH_PROGRAM bash)
@@ -70,13 +83,15 @@ if (SANITIZE)
   add_link_options(-fsanitize=undefined -fno-omit-frame-pointer)
 endif()
 
-add_subdirectory(3rd-party/OpenCL-Headers)
-add_subdirectory(3rd-party/OpenCL-ICD-Loader)
-add_subdirectory(3rd-party/OpenCL-CLHPP)
+add_subdirectory(3rd-party/OpenCL-Headers EXCLUDE_FROM_ALL)
+add_subdirectory(3rd-party/OpenCL-ICD-Loader EXCLUDE_FROM_ALL)
+add_subdirectory(3rd-party/OpenCL-CLHPP EXCLUDE_FROM_ALL)
+add_subdirectory(3rd-party/eigen EXCLUDE_FROM_ALL)
 
 set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
 add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
 
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -115,8 +130,7 @@ add_kernel(matmult_tiled_arb_kernel kernels/matmult_tiled_arb.cl)
 
 add_custom_target(matmult_kernels ALL DEPENDS matmult_naive_kernel matmult_tiled_kernel matmult_tiled_arb_kernel)
 add_dependencies(matmult matmult_kernels)
-target_link_libraries(matmult PUBLIC throttle)
-
+target_link_libraries(matmult PUBLIC throttle Eigen3::Eigen)
 
 add_kernel(bitonic_naive_kernel kernels/bitonic_naive.cl)
 add_kernel(bitonic_local_initial_kernel kernels/bitonic_local_initial.cl)
