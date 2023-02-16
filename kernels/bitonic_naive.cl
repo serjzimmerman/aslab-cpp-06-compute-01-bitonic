@@ -6,6 +6,13 @@
  *
  */
 
+#define SORT2(a, b)                                                                                                    \
+  if (a > b) {                                                                                                         \
+    TYPE temp = a;                                                                                                     \
+    a = b;                                                                                                             \
+    b = temp;                                                                                                          \
+  }
+
 __kernel void naive_bitonic(__global TYPE *buf, uint stage, uint step) {
   uint gid = get_global_id(0);
 
@@ -24,9 +31,5 @@ __kernel void naive_bitonic(__global TYPE *buf, uint stage, uint step) {
   const uint offset = part_index * part_length;
   const uint first_index = offset + i, second_index = offset + j;
 
-  if (buf[first_index] > buf[second_index]) {
-    TYPE temp = buf[first_index];
-    buf[first_index] = buf[second_index];
-    buf[second_index] = temp;
-  }
+  SORT2(buf[first_index], buf[second_index]);
 }

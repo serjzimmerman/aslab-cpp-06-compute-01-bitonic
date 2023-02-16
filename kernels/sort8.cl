@@ -6,7 +6,7 @@
  *
  */
 
-#define SWAP_IF(a, b)                                                                                                  \
+#define SORT2(a, b)                                                                                                    \
   if (a > b) {                                                                                                         \
     TYPE temp = a;                                                                                                     \
     a = b;                                                                                                             \
@@ -27,25 +27,25 @@ __kernel void sort8(__global TYPE *buf) {
   array[7] = buf[i + 7];
 
   // Sorting network for 4 elements:
-  SWAP_IF(array[0], array[2]);
-  SWAP_IF(array[1], array[3]);
-  SWAP_IF(array[4], array[6]);
-  SWAP_IF(array[5], array[7]);
-  SWAP_IF(array[0], array[4]);
-  SWAP_IF(array[1], array[5]);
-  SWAP_IF(array[2], array[6]);
-  SWAP_IF(array[3], array[7]);
-  SWAP_IF(array[0], array[1]);
-  SWAP_IF(array[2], array[3]);
-  SWAP_IF(array[4], array[5]);
-  SWAP_IF(array[6], array[7]);
-  SWAP_IF(array[2], array[4]);
-  SWAP_IF(array[3], array[5]);
-  SWAP_IF(array[1], array[4]);
-  SWAP_IF(array[3], array[6]);
-  SWAP_IF(array[1], array[2]);
-  SWAP_IF(array[3], array[4]);
-  SWAP_IF(array[5], array[6]);
+  SORT2(array[0], array[2]);
+  SORT2(array[1], array[3]);
+  SORT2(array[4], array[6]);
+  SORT2(array[5], array[7]);
+  SORT2(array[0], array[4]);
+  SORT2(array[1], array[5]);
+  SORT2(array[2], array[6]);
+  SORT2(array[3], array[7]);
+  SORT2(array[0], array[1]);
+  SORT2(array[2], array[3]);
+  SORT2(array[4], array[5]);
+  SORT2(array[6], array[7]);
+  SORT2(array[2], array[4]);
+  SORT2(array[3], array[5]);
+  SORT2(array[1], array[4]);
+  SORT2(array[3], array[6]);
+  SORT2(array[1], array[2]);
+  SORT2(array[3], array[4]);
+  SORT2(array[5], array[6]);
 
   buf[i + 0] = array[0];
   buf[i + 1] = array[1];

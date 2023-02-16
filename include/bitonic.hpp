@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "kernelhpp/bitonic_local_initial_kernel.hpp"
 #include "kernelhpp/bitonic_naive_kernel.hpp"
 #include "kernelhpp/sort8_kernel.hpp"
 
@@ -87,13 +88,13 @@ protected:
   using func_signature = cl::Event(cl::Buffer);
 
   void run_boilerplate(std::span<T> container, std::function<func_signature> func) {
-    cl::Buffer buff = {m_ctx, CL_MEM_READ_WRITE, clutils::sizeof_container(container)};
-    cl::copy(m_queue, container.begin(), container.end(), buff);
+    cl::Buffer buf = {m_ctx, CL_MEM_READ_WRITE, clutils::sizeof_container(container)};
+    cl::copy(m_queue, container.begin(), container.end(), buf);
 
-    auto event = func(buff);
+    auto event = func(buf);
     event.wait();
 
-    cl::copy(m_queue, buff, container.begin(), container.end());
+    cl::copy(m_queue, buf, container.begin(), container.end());
   }
 };
 
@@ -120,7 +121,7 @@ public:
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
     const size_type size = container.size(), stages = std::countr_zero(size);
-    if (std::popcount(size) != 1 || size < 4) throw std::runtime_error("Only power-of-two sequences are supported");
+    if (std::popcount(size) != 1 || size < 8) throw std::runtime_error("Only power-of-two sequences are supported");
     cl::Event prev_event, first_event;
 
     auto submit = [&](auto buf, auto stage, auto step) mutable {
@@ -157,77 +158,65 @@ public:
 };
 
 template <typename T, typename t_name> class local_bitonic : public gpu_bitonic<T> {
-  struct kernel_presort {
-    using functor_type = cl::KernelFunctor<cl::Buffer, int, int>;
-    static std::string source(std::string type, unsigned local_size) {
-      static const std::string naive_source = R"(
-      __kernel void local_presort (__global TYPE *buff, int step_start, int step_end) {
-        int global_i = get_global_id(0);
-        int local_i = get_local_id(0);
-        __local segment [SEGMENT_SIZE];
-        segment[local_i] = buff[global_i];
-        barrier(CLK_LOCAL_MEM_FENCE);
-        const int i = local_i;
-        for (int step = step_start; step < step_end; ++step) {
-          for (int stage = step; stage >=0 ; --stage) {
-            int seq_len = 1 << (stage + 1);
-            int power_of_two = 1 << (step - stage);
-            int seq_n = i / seq_len;
-
-            // direction determined by global position, not local
-            int odd = (global_i / seq_len) / power_of_two;
-            bool increasing = ((odd % 2) == 0);
-            int halflen = seq_len / 2;
-
-            if (i < (seq_len * seq_n) + halflen){
-              int   j = i + halflen;
-              if (((segment[i] > segment[j]) && increasing) ||
-                  ((segment[i] < segment[j]) && !increasing)) {
-                TYPE tmp = segment[i];
-                segment[i] = segment[j];
-                segment[j] = tmp;
-              }
-            }
-            barrier(CLK_LOCAL_MEM_FENCE);
-          }
-        }
-        buff[global_i] = segment[local_i];
-      })";
-
-      auto type_macro_def = clutils::kernel_define("TYPE", type);
-      auto local_size_macro_def = clutils::kernel_define("SEGMENT_SIZE", local_size);
-      return type_macro_def + local_size_macro_def + naive_source;
-    }
-
-    static std::string entry() { return "local_presort"; }
-  };
+  using kernel_initial = bitonic_local_initial_kernel;
+  using kernel_naive = bitonic_naive_kernel;
 
 private:
-  cl::Program m_program;
-  typename kernel_presort::functor_type m_functor;
+  cl::Program m_program_initial, m_program_last;
+  typename kernel_initial::functor_type m_functor_initial;
+  typename kernel_naive::functor_type m_functor_last;
+
+  using gpu_bitonic<T>::m_ctx;
   using gpu_bitonic<T>::m_queue;
   using gpu_bitonic<T>::run_boilerplate;
 
-  unsigned m_local_size{};
+  using typename gpu_bitonic<T>::size_type;
+  size_type m_local_size = 0;
 
 public:
   local_bitonic(const unsigned segment_size)
-      : gpu_bitonic<T>{}, m_program{gpu_bitonic<T>::m_ctx, kernel_presort::source(t_name::name_str, segment_size),
-                                    true},
-        m_functor{m_program, kernel_presort::entry()}, m_local_size{segment_size} {}
+      : gpu_bitonic<T>{}, m_program_initial{m_ctx, kernel_initial::source(t_name::name_str, segment_size), true},
+        m_program_last{m_ctx, kernel_naive::source(t_name::name_str), true}, m_functor_initial{m_program_initial,
+                                                                                               kernel_initial::entry()},
+        m_functor_last{m_program_last, kernel_naive::entry()}, m_local_size{segment_size} {
+    if (std::popcount(segment_size) != 1 || segment_size < 2)
+      throw std::runtime_error{"Segment size must be a natural power of 2"};
+  }
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
-    unsigned size = container.size(), steps_n = std::countr_zero(size), nfst = std::countr_zero(m_local_size);
-    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
-    cl::Event prev_event, first_event;
+    size_type size = container.size(), stages = std::countr_zero(size), initial_stages = std::countr_zero(m_local_size);
+    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error{"Only power-of-two sequences are supported"};
+    if (size < m_local_size) throw std::runtime_error{"Total size can't be less than local size"};
 
-    auto submit = [&, first_iter = true, size = container.size()](auto buf) mutable {
-      auto args = cl::EnqueueArgs{m_queue, size, m_local_size};
-      first_event = prev_event = m_functor(args, buf, 0, std::min(nfst - 1, steps_n));
+    cl::Event prev_event, first_event;
+    const auto initial_end_stage = std::min(initial_stages, stages);
+
+    auto enqueue_initial = [&](auto buf) {
+      auto args = cl::EnqueueArgs{m_queue, size / 2, m_local_size / 2};
+      first_event = prev_event = m_functor_initial(args, buf, 0, initial_end_stage, 0);
+    };
+
+    auto enqueue_last = [&](auto buf) {
+      for (unsigned stage = initial_end_stage; stage < stages; ++stage) {
+        for (int step = stage; step >= 0; --step) {
+          const size_type global_size = size / 2;
+          const size_type part_length = 1 << (step + 1);
+
+          if (part_length <= m_local_size) {
+            auto args = cl::EnqueueArgs{m_queue, size / 2, m_local_size / 2};
+            prev_event = m_functor_initial(args, buf, stage, stage + 1, stage - step);
+            break;
+          }
+
+          auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
+          prev_event = m_functor_last(args, buf, stage, step);
+        }
+      }
     };
 
     const auto func = [&](auto buf) {
-      submit(buf);
+      enqueue_initial(buf);
+      enqueue_last(buf);
       return prev_event;
     };
 

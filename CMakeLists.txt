@@ -119,6 +119,8 @@ target_link_libraries(matmult PUBLIC throttle)
 
 
 add_kernel(bitonic_naive_kernel kernels/bitonic_naive.cl)
+add_kernel(bitonic_local_initial_kernel kernels/bitonic_local_initial.cl)
+
 add_opencl_program(bitonic bitonic.cc 220)
-add_custom_target(bitonic_kernels ALL DEPENDS sort8_kernel bitonic_naive_kernel)
+add_custom_target(bitonic_kernels ALL DEPENDS sort8_kernel bitonic_naive_kernel bitonic_local_initial_kernel)
 add_dependencies(bitonic bitonic_kernels)
