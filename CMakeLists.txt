@@ -67,7 +67,6 @@ if (OPTIMIZE_FOR_NATIVE)
 endif()
 
 set(DCMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 find_program(BASH_PROGRAM bash)
 
 # Add flags for GNU sampling profiler gprof in Debug build and RelWithDebInfo
@@ -97,7 +96,6 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(kernel2hpp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/kernel2hpp.py)
 set(KERNEL_HPP_DIR ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp/kernelhpp)
-
 set(KERNEL_HPP_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp)
 
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
@@ -106,6 +104,10 @@ function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
   target_include_directories(${TARGET_NAME} PUBLIC common include ${KERNEL_HPP_INCLUDE})
 endfunction()
+
+set(TYPE "int" CACHE STRING "Type to compile with")
+message(STATUS "Using type = ${TYPE}")
+add_compile_definitions(TYPE__=${TYPE})
 
 add_opencl_program(oclinfo oclinfo.cc 220)
 add_opencl_program(vadd vadd.cc 220)

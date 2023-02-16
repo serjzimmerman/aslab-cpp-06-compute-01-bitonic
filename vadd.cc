@@ -132,19 +132,12 @@ int main(int argc, char *argv[]) try {
     std::cout << "}\n";
   };
 
-  std::random_device rnd_device;
-  std::mt19937 mersenne_engine{rnd_device()};
-
-  std::uniform_int_distribution<TYPE__> dist{lower, upper};
-
-  const auto random = [&dist, &mersenne_engine] { return dist(mersenne_engine); };
-  const auto fill_random_vector = [random]<typename T>(std::vector<T> &vec, auto count) {
-    std::generate_n(std::back_inserter(vec), count, random);
-  };
-
+  auto fill_random_vector = clutils::create_random_number_generator(lower, upper);
   std::vector<TYPE__> a, b;
-  fill_random_vector(a, count);
-  fill_random_vector(b, count);
+  a.resize(count);
+  b.resize(count);
+  fill_random_vector(a);
+  fill_random_vector(b);
 
   print_array("A", a);
   print_array("B", b);
