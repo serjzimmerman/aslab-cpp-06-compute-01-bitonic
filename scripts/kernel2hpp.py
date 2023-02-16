@@ -34,22 +34,24 @@ def main():
 
     filename_without_ext = Path(args.input).with_suffix("").name
 
-    pragmas = re.findall(r"@(\w+).*(\[.*\])", kernel_source)
+    pragmas = re.findall(r"@(\w+).*\((.*)\)", kernel_source)
+
     pragmap = {}
     for i in pragmas:
         pragmap[i[0]] = json.loads(i[1])
 
     kernel_class_name = str(filename_without_ext) if "kernel" not in pragmap else pragmap[
-        "kernel"][0]
+        "kernel"]["name"]
+    entry = pragmap["kernel"]["entry"]
     output_path = Path(args.output if args.output is not None else "./")
     macros = {} if "macros" not in pragmap else pragmap["macros"]
     functor_args = ", ".join(pragmap["signature"])
 
     if output_path.is_dir():
         output_file = str(
-            Path(args.output + kernel_class_name).with_suffix(".hpp"))
+            Path(str(output_path) + kernel_class_name).with_suffix(".hpp"))
     else:
-        output_file = args.output
+        output_file = str(output_path)
 
     header_text = "#include <CL/opencl.hpp>\n#include <string>\n#include <utils.hpp>\n\n"
     header_text += "struct {} {{ \n".format(kernel_class_name)
@@ -73,7 +75,7 @@ def main():
 
     header_text += "\t}\n\n"
     header_text += "\tstatic std::string entry() {{ return \"{}\"; }}\n".format(
-        pragmap["entry"][0])
+        entry)
 
     header_text += "};\n"
 

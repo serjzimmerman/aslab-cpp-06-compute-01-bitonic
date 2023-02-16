@@ -1,9 +1,8 @@
 /* Hardcoded sorting network of 8 elements
  *
- *  @kernel    [ "sort8_kernel" ]
- *  @entry     [ "sort8" ]
- *  @signature [ "cl::Buffer" ]
- *  @macros    [ {"type" : "std::string", "name": "TYPE"} ]
+ *  @kernel    ( {"name" : "sort8_kernel", "entry" : "sort8"} )
+ *  @signature ( ["cl::Buffer"] )
+ *  @macros    ( [{"type" : "std::string", "name": "TYPE"}] )
  *
  */
 

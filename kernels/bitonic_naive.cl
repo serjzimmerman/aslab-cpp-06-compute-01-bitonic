@@ -1,9 +1,8 @@
 /* Simplest possible bitonic sort using only global memory
  *
- *  @kernel    [ "bitonic_naive_kernel" ]
- *  @entry     [ "naive_bitonic" ]
- *  @signature [ "cl::Buffer", "unsigned", "unsigned" ]
- *  @macros    [ {"type" : "std::string", "name": "TYPE"} ]
+ *  @kernel    ( {"name" : "bitonic_naive_kernel", "entry" : "naive_bitonic"} )
+ *  @signature ( ["cl::Buffer", "unsigned", "unsigned"] )
+ *  @macros    ( [{"type" : "std::string", "name": "TYPE"}] )
  *
  */
 

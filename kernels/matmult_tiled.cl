@@ -1,9 +1,8 @@
 /* Tiled matrix multiplication with local memory
  *
- *  @kernel    [ "matmult_tiled_kernel" ]
- *  @entry     [ "tiled" ]
- *  @signature [ "cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int" ]
- *  @macros    [ {"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"} ]
+ *  @kernel    ( {"name" : "matmult_tiled_kernel", "entry" : "tiled"} )
+ *  @signature ( ["cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int"] )
+ *  @macros    ( [{"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"}] )
  *
  */
 
