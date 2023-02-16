@@ -21,6 +21,9 @@
 #include <stdexcept>
 #include <string>
 
+#include "kernelhpp/bitonic_naive_kernel.hpp"
+#include "kernelhpp/sort8_kernel.hpp"
+
 namespace bitonic {
 
 template <typename T> struct i_bitonic_sort {
@@ -70,50 +73,6 @@ template <typename T> struct cpu_bitonic_sort : public i_bitonic_sort<T> {
   }
 };
 
-namespace utils {
-
-struct kernel_sort8 {
-  using functor_type = cl::KernelFunctor<cl::Buffer>;
-  static std::string source(std::string type) {
-    static const std::string sort8_source = R"(
-      #define SWAP_IF(a, b) if (a > b) { TYPE temp = a; a = b; b = temp; }
-      
-      __kernel void sort8(__global TYPE *buf) {
-        int i = 8 * get_global_id(0);
-        
-        TYPE array[8];
-        array[0] = buf[i + 0]; array[1] = buf[i + 1];
-        array[2] = buf[i + 2]; array[3] = buf[i + 3];
-        array[4] = buf[i + 4]; array[5] = buf[i + 5];
-        array[6] = buf[i + 6]; array[7] = buf[i + 7];
-
-        // Sorting network for 4 elements:
-        SWAP_IF(array[0], array[2]); SWAP_IF(array[1], array[3]);
-        SWAP_IF(array[4], array[6]); SWAP_IF(array[5], array[7]);
-        SWAP_IF(array[0], array[4]); SWAP_IF(array[1], array[5]);
-        SWAP_IF(array[2], array[6]); SWAP_IF(array[3], array[7]);
-        SWAP_IF(array[0], array[1]); SWAP_IF(array[2], array[3]);
-        SWAP_IF(array[4], array[5]); SWAP_IF(array[6], array[7]);
-        SWAP_IF(array[2], array[4]); SWAP_IF(array[3], array[5]);
-        SWAP_IF(array[1], array[4]); SWAP_IF(array[3], array[6]);
-        SWAP_IF(array[1], array[2]); SWAP_IF(array[3], array[4]);
-        SWAP_IF(array[5], array[6]);
-
-        buf[i + 0] = array[0]; buf[i + 1] = array[1];
-        buf[i + 2] = array[2]; buf[i + 3] = array[3];
-        buf[i + 4] = array[4]; buf[i + 5] = array[5];
-        buf[i + 6] = array[6]; buf[i + 7] = array[7];
-      })";
-
-    auto type_macro_def = clutils::kernel_define("TYPE", type);
-    return type_macro_def + sort8_source;
-  }
-
-  static std::string entry() { return "sort8"; }
-};
-
-} // namespace utils
-
 template <typename T> class gpu_bitonic : public i_bitonic_sort<T>, protected clutils::platform_selector {
 protected:
   cl::Context m_ctx;
@@ -139,46 +98,12 @@ protected:
 };
 
 template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<T> {
-  struct kernel {
-    using functor_type = cl::KernelFunctor<cl::Buffer, unsigned, unsigned>;
-    static std::string source(std::string type) {
-      static const std::string naive_source = R"(
-      __kernel void naive_bitonic (__global TYPE *buf, uint stage, uint step) {
-        uint gid = get_global_id(0);
-
-        const uint half_length = 1 << step, part_length = half_length * 2;
-        const uint part_index = gid >> step;
-
-        const uint i = gid - part_index * half_length;
-        uint j;
-
-        if (stage == step) { // The first step in a stage
-          j = part_length - i - 1;
-        } else {
-          j = i + half_length;
-        }
-
-        const uint offset = part_index * part_length;
-        const uint first_index = offset + i, second_index = offset + j;
-
-        if (buf[first_index] > buf[second_index]) {
-          TYPE temp = buf[first_index];
-          buf[first_index] = buf[second_index];
-          buf[second_index] = temp;
-        }
-      })";
-
-      auto type_macro_def = clutils::kernel_define("TYPE", type);
-      return type_macro_def + naive_source;
-    }
-
-    static std::string entry() { return "naive_bitonic"; }
-  };
+  using kernel = bitonic_naive_kernel;
 
 private:
   cl::Program m_program_primary, m_program_sort8;
   typename kernel::functor_type m_functor_primary;
-  typename utils::kernel_sort8::functor_type m_functor_sort8;
+  typename sort8_kernel::functor_type m_functor_sort8;
 
   using gpu_bitonic<T>::m_queue;
   using gpu_bitonic<T>::m_ctx;
@@ -189,9 +114,9 @@ private:
 public:
   naive_bitonic()
       : gpu_bitonic<T>{}, m_program_primary{m_ctx, kernel::source(t_name::name_str), true},
-        m_program_sort8{m_ctx, utils::kernel_sort8::source(t_name::name_str), true},
-        m_functor_primary{m_program_primary, kernel::entry()}, m_functor_sort8{m_program_sort8,
-                                                                               utils::kernel_sort8::entry()} {}
+        m_program_sort8{m_ctx, sort8_kernel::source(t_name::name_str), true},
+        m_functor_primary{m_program_primary, kernel::entry()}, m_functor_sort8{m_program_sort8, sort8_kernel::entry()} {
+  }
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
     const size_type size = container.size(), stages = std::countr_zero(size);

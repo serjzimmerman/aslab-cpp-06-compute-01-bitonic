@@ -1,9 +1,9 @@
-/* Simplest possible matrix multiplication algorithm without local memory
+/* Simplest possible matrix multiplication algorithm without local memory. Accepts arbitrary size matrices and TILE_SIZE
  *
- *  @kernel    ["matmult_tiled_arb_kernel"]
- *  @entry     ["tiled_arbitrary"]
- *  @signature ["cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int", "int"]
- *  @macros    [{"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"}]
+ *  @kernel    [ "matmult_tiled_arb_kernel" ]
+ *  @entry     [ "tiled_arbitrary" ]
+ *  @signature [ "cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int", "int" ]
+ *  @macros    [ {"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"} ]
  *
  */
 

@@ -1,9 +1,9 @@
-/* Simplest possible matrix multiplication algorithm without local memory
+/* Tiled matrix multiplication with local memory
  *
- *  @kernel    ["matmult_tiled_kernel"]
- *  @entry     ["tiled"]
- *  @signature ["cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int"]
- *  @macros    [{"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"}]
+ *  @kernel    [ "matmult_tiled_kernel" ]
+ *  @entry     [ "tiled" ]
+ *  @signature [ "cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int" ]
+ *  @macros    [ {"type" : "std::string", "name": "TYPE"}, {"type": "unsigned", "name": "TILE_SIZE"} ]
  *
  */
 

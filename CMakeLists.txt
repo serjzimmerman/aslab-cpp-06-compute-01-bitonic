@@ -106,6 +106,8 @@ function(add_kernel TARGET_NAME INPUT_FILE)
   set(${TARGET_NAME}_OUTPUTS ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp PARENT_SCOPE)
 endfunction()
 
+add_kernel(sort8_kernel kernels/sort8.cl)
+
 add_opencl_program(matmult matmult.cc 220)
 add_kernel(matmult_naive_kernel kernels/matmult_naive.cl)
 add_kernel(matmult_tiled_kernel kernels/matmult_tiled.cl)
@@ -115,4 +117,8 @@ add_custom_target(matmult_kernels ALL DEPENDS matmult_naive_kernel matmult_tiled
 add_dependencies(matmult matmult_kernels)
 target_link_libraries(matmult PUBLIC throttle)
 
+
+add_kernel(bitonic_naive_kernel kernels/bitonic_naive.cl)
 add_opencl_program(bitonic bitonic.cc 220)
+add_custom_target(bitonic_kernels ALL DEPENDS sort8_kernel bitonic_naive_kernel)
+add_dependencies(bitonic bitonic_kernels)

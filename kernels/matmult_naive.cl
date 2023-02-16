@@ -1,9 +1,9 @@
 /* Simplest possible matrix multiplication algorithm without local memory
  *
- *  @kernel    ["matmult_naive_kernel"]
- *  @entry     ["naive"]
- *  @signature ["cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int"]
- *  @macros    [{"type" : "std::string", "name": "TYPE"}]
+ *  @kernel    [ "matmult_naive_kernel" ]
+ *  @entry     [ "naive" ]
+ *  @signature [ "cl::Buffer", "cl::Buffer", "cl::Buffer", "int", "int", "int" ]
+ *  @macros    [ {"type" : "std::string", "name": "TYPE"} ]
  *
  */
 
