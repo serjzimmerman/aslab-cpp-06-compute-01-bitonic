@@ -14,8 +14,8 @@ __kernel void tiled_arbitrary(__global TYPE *A, __global TYPE *B, __global TYPE 
   int local_row = get_local_id(0);
   int local_col = get_local_id(1);
 
-  __local tile_A[TILE_SIZE * TILE_SIZE];
-  __local tile_B[TILE_SIZE * TILE_SIZE];
+  __local TYPE tile_A[TILE_SIZE * TILE_SIZE];
+  __local TYPE tile_B[TILE_SIZE * TILE_SIZE];
 
   int global_row = TILE_SIZE * tile_row + local_row;
   int global_col = TILE_SIZE * tile_col + local_col;
