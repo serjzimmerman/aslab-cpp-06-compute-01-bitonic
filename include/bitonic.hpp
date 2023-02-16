@@ -102,9 +102,8 @@ template <typename T, typename t_name> class naive_bitonic : public gpu_bitonic<
   using kernel = bitonic_naive_kernel;
 
 private:
-  cl::Program m_program_primary, m_program_sort8;
-  typename kernel::functor_type m_functor_primary;
-  typename sort8_kernel::functor_type m_functor_sort8;
+  cl::Program m_program;
+  typename kernel::functor_type m_functor;
 
   using gpu_bitonic<T>::m_queue;
   using gpu_bitonic<T>::m_ctx;
@@ -114,28 +113,30 @@ private:
 
 public:
   naive_bitonic()
-      : gpu_bitonic<T>{}, m_program_primary{m_ctx, kernel::source(t_name::name_str), true},
-        m_program_sort8{m_ctx, sort8_kernel::source(t_name::name_str), true},
-        m_functor_primary{m_program_primary, kernel::entry()}, m_functor_sort8{m_program_sort8, sort8_kernel::entry()} {
-  }
+      : gpu_bitonic<T>{}, m_program{m_ctx, kernel::source(t_name::name_str), true}, m_functor{m_program,
+                                                                                              kernel::entry()} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
     const size_type size = container.size(), stages = std::countr_zero(size);
-    if (std::popcount(size) != 1 || size < 8) throw std::runtime_error("Only power-of-two sequences are supported");
+    if (std::popcount(size) != 1 || size < 2) throw std::runtime_error("Only power-of-two sequences are supported");
     cl::Event prev_event, first_event;
 
-    auto submit = [&](auto buf, auto stage, auto step) mutable {
+    auto submit = [&, first_iter = true](auto buf, auto stage, auto step) mutable {
       const auto global_size = size / 2;
-      auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
-      prev_event = m_functor_primary(args, buf, stage, step);
+
+      if (first_iter) {
+        const auto args = cl::EnqueueArgs{m_queue, global_size};
+        first_event = prev_event = m_functor(args, buf, stage, step);
+        first_iter = false;
+        return;
+      }
+
+      const auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
+      prev_event = m_functor(args, buf, stage, step);
     };
 
     const auto func = [&, stages](auto buf) {
-      auto initial_args = cl::EnqueueArgs{m_queue, size / 8};
-      prev_event = first_event = m_functor_sort8(initial_args, buf);
-
-      for (unsigned stage = 3; stage < stages;
-           ++stage) { // Skip first 3 stages because we presorted every 4 elements with a single kernel
+      for (unsigned stage = 0; stage < stages; ++stage) {
         for (int step = stage; step >= 0; --step) {
           submit(buf, stage, step);
         }
@@ -143,11 +144,11 @@ public:
       return prev_event;
     };
 
-    auto wall_start = std::chrono::high_resolution_clock::now();
+    const auto wall_start = std::chrono::high_resolution_clock::now();
     run_boilerplate(container, func);
-    auto wall_end = std::chrono::high_resolution_clock::now();
+    const auto wall_end = std::chrono::high_resolution_clock::now();
 
-    std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
+    const std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
         pure_end{prev_event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
 
     if (time) {
@@ -184,7 +185,8 @@ public:
   }
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
-    size_type size = container.size(), stages = std::countr_zero(size), initial_stages = std::countr_zero(m_local_size);
+    const size_type size = container.size(), stages = std::countr_zero(size),
+                    initial_stages = std::countr_zero(m_local_size);
     if (std::popcount(size) != 1 || size < 2) throw std::runtime_error{"Only power-of-two sequences are supported"};
     if (size < m_local_size) throw std::runtime_error{"Total size can't be less than local size"};
 
@@ -203,12 +205,12 @@ public:
           const size_type part_length = 1 << (step + 1);
 
           if (part_length <= m_local_size) {
-            auto args = cl::EnqueueArgs{m_queue, size / 2, m_local_size / 2};
+            const auto args = cl::EnqueueArgs{m_queue, size / 2, m_local_size / 2};
             prev_event = m_functor_initial(args, buf, stage, stage + 1, stage - step);
             break;
           }
 
-          auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
+          const auto args = cl::EnqueueArgs{m_queue, prev_event, global_size};
           prev_event = m_functor_last(args, buf, stage, step);
         }
       }
@@ -220,11 +222,11 @@ public:
       return prev_event;
     };
 
-    auto wall_start = std::chrono::high_resolution_clock::now();
+    const auto wall_start = std::chrono::high_resolution_clock::now();
     run_boilerplate(container, func);
-    auto wall_end = std::chrono::high_resolution_clock::now();
+    const auto wall_end = std::chrono::high_resolution_clock::now();
 
-    std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
+    const std::chrono::nanoseconds pure_start{first_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()},
         pure_end{prev_event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
 
     if (time) {

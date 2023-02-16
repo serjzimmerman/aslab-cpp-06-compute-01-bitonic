@@ -45,13 +45,15 @@ int validate_results(const auto &origin, const auto &res, const auto &check) {
   if (std::equal(res.begin(), res.end(), check.begin())) {
     std::cout << "Bitonic sort works fine\n";
     return EXIT_SUCCESS;
-  } else {
-    std::cout << "Bitonic sort is broken\n";
-    vprint("Original", origin);
-    vprint("Result", res);
-    vprint("Correct", check);
-    return EXIT_FAILURE;
   }
+
+  std::cout << "Bitonic sort is broken\n";
+
+  vprint("Original", origin);
+  vprint("Result", res);
+  vprint("Correct", check);
+
+  return EXIT_FAILURE;
 }
 
 template <typename T> struct type_name {};
@@ -67,10 +69,11 @@ int main(int argc, char **argv) try {
 
   std::string kernel_name;
   const auto maximum = std::numeric_limits<TYPE__>::max(), minimum = std::numeric_limits<TYPE__>::min();
-  desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")("skip,s", "Skip std::sort")(
-      "lower,l", po::value<TYPE__>(&lower)->default_value(minimum), "Lower bound for random integers")(
-      "upper,u", po::value<TYPE__>(&upper)->default_value(maximum), "Upper bound for random integers")(
-      "num,n", po::value<unsigned>(&num)->default_value(2), "n dor 2^n length vector of integers")(
+  desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")(
+      "skip,s", "Skip comparing with std::sort")("lower,l", po::value<TYPE__>(&lower)->default_value(minimum),
+                                                 "Lower bound")(
+      "upper,u", po::value<TYPE__>(&upper)->default_value(maximum),
+      "Upper bound")("num,n", po::value<unsigned>(&num)->default_value(22), "Length of the array to sort = 2^n")(
       "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
       "Which kernel to use: naive, cpu, local")("lsz", po::value<unsigned>(&lsz)->default_value(256),
                                                 "Local iteration size");

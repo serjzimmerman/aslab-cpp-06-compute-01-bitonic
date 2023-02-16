@@ -2,13 +2,12 @@ cmake_minimum_required(VERSION 3.11)
 project(opencl)
 
 option(INSOURCEBUILD OFF)
-
 if((${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBUILD})
-  message(FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it.")
+  message(FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option ifyou are sure about it.")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 endif()
 
@@ -32,33 +31,30 @@ endif()
 set(NOLINT ON CACHE BOOL "Disable clang-tidy")
 
 if(NOT ${NOLINT})
-find_program(CLANG_TIDY_COMMAND clang-tidy)
-if(CLANG_TIDY_COMMAND)
-
-# Clang-tidy for linting
-set(CMAKE_CXX_CLANG_TIDY 
-  clang-tidy;
-  -checks=google-*,cppcoreguidelines-*
-)
-set(CMAKE_C_CLANG_TIDY 
-  clang-tidy;
-  -checks=google-*,cppcoreguidelines-*
-)
-
+  find_program(CLANG_TIDY_COMMAND clang-tidy)
+  if(CLANG_TIDY_COMMAND)
+    # Clang-tidy for linting
+    set(CMAKE_CXX_CLANG_TIDY 
+      clang-tidy;
+      -checks=google-*,cppcoreguidelines-*
+    )
+    set(CMAKE_C_CLANG_TIDY 
+      clang-tidy;
+      -checks=google-*,cppcoreguidelines-*
+    )
+  else()
+    message(WARNING "Unable to find clang-tidy, linter disabled")
+  endif()
 else()
-message(WARNING "Unable to find clang-tidy, linter disabled")
-endif()
-
-else()
-message(WARNING "-DNOLINT option provided, linter disabled")
+  message(WARNING "-DNOLINT option provided, linter disabled")
 endif()
 
 option(OPTIMIZE_FOR_NATIVE "Build with -march=native" ON)
-if (OPTIMIZE_FOR_NATIVE)
+if(OPTIMIZE_FOR_NATIVE)
   include(CheckCXXCompilerFlag)
 
   CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
-  if (COMPILER_SUPPORTS_MARCH_NATIVE)
+  if(COMPILER_SUPPORTS_MARCH_NATIVE)
     message(STATUS "Compiling with -march=native")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   else()
@@ -71,13 +67,13 @@ find_program(BASH_PROGRAM bash)
 
 # Add flags for GNU sampling profiler gprof in Debug build and RelWithDebInfo
 option(PROFILE OFF)
-if (PROFILE)
+if(PROFILE)
   add_compile_options(-pg)
   add_link_options(-pg)
 endif()
 
 option(SANITIZE OFF)
-if (SANITIZE)
+if(SANITIZE)
   add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=undefined -fno-omit-frame-pointer)
 endif()
@@ -123,8 +119,6 @@ function(add_kernel TARGET_NAME INPUT_FILE)
   set(${TARGET_NAME}_OUTPUTS ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp PARENT_SCOPE)
 endfunction()
 
-add_kernel(sort8_kernel kernels/sort8.cl)
-
 add_opencl_program(matmult matmult.cc 220)
 add_kernel(matmult_naive_kernel kernels/matmult_naive.cl)
 add_kernel(matmult_tiled_kernel kernels/matmult_tiled.cl)
@@ -138,5 +132,5 @@ add_kernel(bitonic_naive_kernel kernels/bitonic_naive.cl)
 add_kernel(bitonic_local_initial_kernel kernels/bitonic_local_initial.cl)
 
 add_opencl_program(bitonic bitonic.cc 220)
-add_custom_target(bitonic_kernels ALL DEPENDS sort8_kernel bitonic_naive_kernel bitonic_local_initial_kernel)
+add_custom_target(bitonic_kernels ALL DEPENDS bitonic_naive_kernel bitonic_local_initial_kernel)
 add_dependencies(bitonic bitonic_kernels)
