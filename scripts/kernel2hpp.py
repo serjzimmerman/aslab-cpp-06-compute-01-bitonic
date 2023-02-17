@@ -48,10 +48,12 @@ def main():
     functor_args = ", ".join(pragmap["signature"])
 
     if output_path.is_dir():
-        output_file = str(
-            Path(str(output_path) + kernel_class_name).with_suffix(".hpp"))
+        output_file = Path(str(output_path) + kernel_class_name).with_suffix(".hpp")
     else:
-        output_file = str(output_path)
+        output_file = output_path
+
+    output_file.parent.mkdir(exist_ok=True, parents=True)
+    output_file = str(output_file)
 
     header_text = "#include <CL/opencl.hpp>\n#include <string>\n#include <utils.hpp>\n\n"
     header_text += "struct {} {{ \n".format(kernel_class_name)

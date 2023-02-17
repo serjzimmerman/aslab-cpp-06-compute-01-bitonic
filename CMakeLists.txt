@@ -94,8 +94,6 @@ set(kernel2hpp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/kernel2hpp.py)
 set(KERNEL_HPP_DIR ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp/kernelhpp)
 set(KERNEL_HPP_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp)
 
-add_custom_target(make_kernelhpp_dir ALL COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp/kernelhpp)
-
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
   target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL OpenCL::Headers OpenCL::HeadersCpp Boost::program_options)
