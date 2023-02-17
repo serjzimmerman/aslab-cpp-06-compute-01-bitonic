@@ -97,7 +97,7 @@ def plot_measurements_of_kernel (filename: str, kernel_list: list, data)-> None:
         plt.plot(lens, gpu_times, marker='o', label=f"{kernel} bitonic sort")
         first = False
     
-    plt.plot(lens, cpu_times, marker='o', label="std::sort")
+    plt.plot(lens, cpu_times, marker='o', label="CPU sort")
     
     plt.xlabel("Len of the test")
     plt.ylabel("Time spend, s")
