@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) try {
   std::string kernel_name;
   desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")(
       "eigen,e", "Compare with Eigen matrix multiplication")("skip,s", "Skip naive cpu calculation")(
-      "lower,l", po::value<TYPE__>(&lower)->default_value(0), "Low bound for random integer")(
+      "lower,l", po::value<TYPE__>(&lower)->default_value(-32), "Low bound for random integer")(
       "upper,u", po::value<TYPE__>(&upper)->default_value(32), "Upper bound for random integer")(
       "ax", po::value<unsigned>(&ax)->default_value(512),
       "Number of rows in matrix A")("ay", po::value<unsigned>(&ay)->default_value(512), "Number of cols in matrix A")(

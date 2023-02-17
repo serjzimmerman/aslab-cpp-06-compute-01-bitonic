@@ -50,7 +50,7 @@ To run bitonic sort use __matmult__ target.
 #  -p [ --print ]               Print on failure
 #  -e [ --eigen ]               Compare with Eigen matrix multiplication
 #  -s [ --skip ]                Skip cpu calculation
-#  -l [ --lower ] arg (=0)      Low bound for random integer
+#  -l [ --lower ] arg (=-32)    Low bound for random integer
 #  -u [ --upper ] arg (=32)     Upper bound for random integer
 #  --ax arg (=512)              Number of rows in matrix A
 #  --ay arg (=512)              Number of cols in matrix A
