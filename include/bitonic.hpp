@@ -23,7 +23,6 @@
 
 #include "kernelhpp/bitonic_local_initial_kernel.hpp"
 #include "kernelhpp/bitonic_naive_kernel.hpp"
-#include "kernelhpp/sort8_kernel.hpp"
 
 namespace bitonic {
 

@@ -35,7 +35,7 @@
 #include "kernelhpp/matmult_tiled_arb_kernel.hpp"
 #include "kernelhpp/matmult_tiled_kernel.hpp"
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 #define STRINGIFY0(v) #v
 #define STRINGIFY(v) STRINGIFY0(v)
