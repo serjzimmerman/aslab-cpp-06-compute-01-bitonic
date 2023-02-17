@@ -29,6 +29,15 @@
 #include <boost/program_options.hpp>
 #include <boost/program_options/option.hpp>
 
+#ifdef PAR_CPU_SORT
+#include <parallel/algorithm>
+#define CPU_SORT ::__gnu_parallel::sort
+#define CPU_SORT_NAME "__gnu_parallel::sort"
+#else
+#define CPU_SORT std::sort
+#define CPU_SORT_NAME "std::sort"
+#endif
+
 using vector_type = std::vector<TYPE__>;
 
 namespace po = boost::program_options;
@@ -118,7 +127,7 @@ int main(int argc, char **argv) try {
 
   if (!skip_std_sort) {
     auto wall_start = std::chrono::high_resolution_clock::now();
-    std::sort(check.begin(), check.end());
+    CPU_SORT(check.begin(), check.end());
     auto wall_end = std::chrono::high_resolution_clock::now();
     wall = std::chrono::duration_cast<std::chrono::milliseconds>(wall_end - wall_start);
   }
@@ -128,7 +137,7 @@ int main(int argc, char **argv) try {
 
   sorter->sort(vec, &prof_info);
 
-  if (!skip_std_sort) std::cout << "std::sort wall time: " << wall.count() << " ms\n";
+  if (!skip_std_sort) std::cout << CPU_SORT_NAME << " wall time: " << wall.count() << " ms\n";
 
   std::cout << "bitonic wall time: " << prof_info.wall.count() << " ms\n";
   std::cout << "bitonic pure time: " << prof_info.pure.count() << " ms\n";

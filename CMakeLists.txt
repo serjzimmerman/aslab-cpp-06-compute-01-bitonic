@@ -128,9 +128,19 @@ add_custom_target(matmult_kernels ALL DEPENDS matmult_naive_kernel matmult_tiled
 add_dependencies(matmult matmult_kernels)
 target_link_libraries(matmult PUBLIC throttle Eigen3::Eigen)
 
+option(PAR_CPU_SORT "Use __gnu_parallel::sort to compare with. Requires OpenMP" OFF)
+
 add_kernel(bitonic_naive_kernel kernels/bitonic_naive.cl)
 add_kernel(bitonic_local_initial_kernel kernels/bitonic_local_initial.cl)
 
 add_opencl_program(bitonic bitonic.cc 220)
 add_custom_target(bitonic_kernels ALL DEPENDS bitonic_naive_kernel bitonic_local_initial_kernel)
 add_dependencies(bitonic bitonic_kernels)
+
+if(PAR_CPU_SORT)
+
+find_package(OpenMP REQUIRED)
+target_link_libraries(bitonic PUBLIC OpenMP::OpenMP_CXX)
+target_compile_definitions(bitonic PUBLIC PAR_CPU_SORT)
+
+endif()
