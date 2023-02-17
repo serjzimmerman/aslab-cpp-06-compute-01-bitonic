@@ -1,7 +1,0 @@
-Sorting vector of size = 16777216
- -------- 
-std::sort wall time: 1452 ms
-bitonic wall time: 193 ms
-bitonic pure time: 141 ms
- -------- 
-Bitonic sort works fine

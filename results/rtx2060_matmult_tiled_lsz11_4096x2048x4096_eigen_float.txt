@@ -1,6 +1,0 @@
-Multiplying A [4096 x 2048] by B [2048 x 4096]
- -------- 
-Eigen wall time: 856 ms
-GPU wall time: 324 ms
-GPU pure time: 260 ms
- -------- 
