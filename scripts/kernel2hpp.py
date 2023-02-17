@@ -48,7 +48,8 @@ def main():
     functor_args = ", ".join(pragmap["signature"])
 
     if output_path.is_dir():
-        output_file = Path(str(output_path) + kernel_class_name).with_suffix(".hpp")
+        output_file = Path(str(output_path) +
+                           kernel_class_name).with_suffix(".hpp")
     else:
         output_file = output_path
 
@@ -87,4 +88,5 @@ def main():
     print(pragmap)
 
 
-main()
+if (__name__ == "__main__"):
+    main()
