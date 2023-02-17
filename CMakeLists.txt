@@ -81,7 +81,6 @@ endif()
 add_subdirectory(3rd-party/OpenCL-Headers EXCLUDE_FROM_ALL)
 add_subdirectory(3rd-party/OpenCL-ICD-Loader EXCLUDE_FROM_ALL)
 add_subdirectory(3rd-party/OpenCL-CLHPP EXCLUDE_FROM_ALL)
-add_subdirectory(3rd-party/eigen EXCLUDE_FROM_ALL)
 
 set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
 add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
@@ -119,6 +118,8 @@ function(add_kernel TARGET_NAME INPUT_FILE)
   set(${TARGET_NAME}_OUTPUTS ${KERNEL_HPP_DIR}/${TARGET_NAME}.hpp PARENT_SCOPE)
 endfunction()
 
+option(EIGEN_MAT_MULT "Compare matrix multiplication against Eigen" OFF)
+
 add_opencl_program(matmult matmult.cc 220)
 add_kernel(matmult_naive_kernel kernels/matmult_naive.cl)
 add_kernel(matmult_tiled_kernel kernels/matmult_tiled.cl)
@@ -126,7 +127,15 @@ add_kernel(matmult_tiled_arb_kernel kernels/matmult_tiled_arb.cl)
 
 add_custom_target(matmult_kernels ALL DEPENDS matmult_naive_kernel matmult_tiled_kernel matmult_tiled_arb_kernel)
 add_dependencies(matmult matmult_kernels)
-target_link_libraries(matmult PUBLIC throttle Eigen3::Eigen)
+target_link_libraries(matmult PUBLIC throttle)
+
+if(EIGEN_MAT_MULT)
+
+find_package(Eigen3 REQUIRED)
+target_link_libraries(matmult PUBLIC Eigen3::Eigen)
+target_compile_definitions(matmult PUBLIC EIGEN_MAT_MULT)
+
+endif()
 
 option(PAR_CPU_SORT "Use __gnu_parallel::sort to compare with. Requires OpenMP" OFF)
 

@@ -35,8 +35,6 @@
 #include "kernelhpp/matmult_tiled_arb_kernel.hpp"
 #include "kernelhpp/matmult_tiled_kernel.hpp"
 
-#include <Eigen/Dense>
-
 #define STRINGIFY0(v) #v
 #define STRINGIFY(v) STRINGIFY0(v)
 
@@ -44,10 +42,14 @@
 #define TYPE__ int
 #endif
 
+#ifdef EIGEN_MAT_MULT
+#include <Eigen/Dense>
+using eigen_matrix_type = Eigen::Matrix<TYPE__, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+#endif
+
 namespace po = boost::program_options;
 namespace linmath = throttle::linmath;
 
-using eigen_matrix_type = Eigen::Matrix<TYPE__, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 using matrix_type = linmath::contiguous_matrix<TYPE__>;
 
 namespace app {
@@ -205,10 +207,12 @@ public:
 
 namespace {
 
+#ifdef EIGEN_MAT_MULT
 eigen_matrix_type to_eigen_matrix(const matrix_type &matrix) {
   eigen_matrix_type e = Eigen::Map<const eigen_matrix_type>(matrix.data(), matrix.rows(), matrix.cols());
   return e;
 }
+#endif
 
 } // namespace
 
@@ -238,6 +242,10 @@ int main(int argc, char *argv[]) try {
   const bool print_on_failure = vm.count("print");
   const bool compare_eigen = vm.count("eigen");
 
+#ifndef EIGEN_MAT_MULT
+  if (compare_eigen) std::cout << "Warning: app wasn't built with Eigen, ignoring --eigen option\n";
+#endif
+
   if (vm.count("help")) {
     std::cout << desc << "\n";
     return 1;
@@ -265,7 +273,7 @@ int main(int argc, char *argv[]) try {
   random_filler(a);
   random_filler(b);
 
-  std::chrono::milliseconds wall_cpu_naive, wall_cpu_eigen;
+  std::chrono::milliseconds wall_cpu_naive;
 
   const auto measure_cpu_time = [](auto func) {
     auto wall_start = std::chrono::high_resolution_clock::now();
@@ -279,10 +287,13 @@ int main(int argc, char *argv[]) try {
     wall_cpu_naive = measure_cpu_time([&a, &b, &c]() { c = a * b; });
   }
 
+#ifdef EIGEN_MAT_MULT
+  std::chrono::milliseconds wall_cpu_eigen;
   if (compare_eigen) {
     eigen_matrix_type a_e = to_eigen_matrix(a), b_e = to_eigen_matrix(b), c_e;
     wall_cpu_eigen = measure_cpu_time([&a_e, &b_e, &c_e]() { c_e = a_e * b_e; });
   }
+#endif
 
   static const auto matrix_print = [](auto name, auto &mat) {
     std::cout << name << " : \n";
@@ -298,7 +309,10 @@ int main(int argc, char *argv[]) try {
 
   auto res = mult->multiply(a, b, &prof_info);
   if (!skip_cpu) std::cout << "CPU wall time: " << wall_cpu_naive.count() << " ms\n";
+
+#ifdef EIGEN_MAT_MULT
   if (compare_eigen) std::cout << "Eigen wall time: " << wall_cpu_eigen.count() << " ms\n";
+#endif
 
   std::cout << "GPU wall time: " << prof_info.wall.count() << " ms\n";
   std::cout << "GPU pure time: " << prof_info.pure.count() << " ms\n";
