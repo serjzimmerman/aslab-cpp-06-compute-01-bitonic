@@ -85,7 +85,6 @@ add_subdirectory(3rd-party/OpenCL-CLHPP EXCLUDE_FROM_ALL)
 set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
 add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
 
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -131,7 +130,7 @@ target_link_libraries(matmult PUBLIC throttle)
 
 if(EIGEN_MAT_MULT)
 
-find_package(Eigen3 REQUIRED)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 target_link_libraries(matmult PUBLIC Eigen3::Eigen)
 target_compile_definitions(matmult PUBLIC EIGEN_MAT_MULT)
 
