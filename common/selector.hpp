@@ -55,7 +55,7 @@ inline platform_version_ext decode_platform_version(std::string version_string) 
   }
 
   auto to_int = [](std::string_view s) -> std::optional<int> {
-    if (int value; std::from_chars(s.begin(), s.end(), value).ec == std::errc{}) {
+    if (int value; std::from_chars(s.data(), s.data() + s.size(), value).ec == std::errc{}) {
       return value;
     } else {
       return std::nullopt;
