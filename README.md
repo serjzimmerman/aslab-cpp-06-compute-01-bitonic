@@ -24,6 +24,14 @@ cd build/
 make -j12
 ```
 
+### Windows
+```sh
+git submodule init && git submodule update
+# For some reason MSVC does not like linking dynamically to boost libs
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBOOST_ROOT="path/to/boost" -DBoost_USE_STATIC_LIBS=ON
+cmake --build build
+```
+
 ## 2. Bitonic
 To run bitonic sort use __bitonic__ target. 
 
