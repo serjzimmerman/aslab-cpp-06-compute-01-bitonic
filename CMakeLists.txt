@@ -155,3 +155,8 @@ target_link_libraries(bitonic PUBLIC OpenMP::OpenMP_CXX)
 target_compile_definitions(bitonic PUBLIC PAR_CPU_SORT)
 
 endif()
+
+if(BASH_PROGRAM AND NOT BITONIC_NO_TESTING__)
+  enable_testing()
+  add_test(NAME test.network COMMAND ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/test.sh "$<TARGET_FILE:bitonic>" ${CMAKE_CURRENT_SOURCE_DIR})
+endif()

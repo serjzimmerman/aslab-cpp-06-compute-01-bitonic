@@ -81,9 +81,18 @@ protected:
   using typename i_bitonic_sort<T>::size_type;
   static constexpr clutils::platform_version cl_api_version = {2, 2};
 
-  gpu_bitonic()
-      : clutils::platform_selector{cl_api_version}, m_ctx{m_device}, m_queue{m_ctx, cl::QueueProperties::Profiling} {}
+public:
+  gpu_bitonic(bool verbose)
+      : clutils::platform_selector{cl_api_version, verbose}, m_ctx{m_device}, m_queue{m_ctx,
+                                                                                      cl::QueueProperties::Profiling} {}
 
+  template <long t_info> auto get_device_info() const { return m_device.getInfo<t_info>(); }
+
+private:
+  void operator()(std::span<T>, clutils::profiling_info *) override {
+  } // Dummy override so that the class is no longer abstract
+
+protected:
   using func_signature = cl::Event(cl::Buffer);
 
   void run_boilerplate(std::span<T> container, std::function<func_signature> func) {
@@ -111,9 +120,11 @@ private:
   using typename gpu_bitonic<T>::size_type;
 
 public:
-  naive_bitonic()
-      : gpu_bitonic<T>{}, m_program{m_ctx, kernel::source(t_name::name_str), true}, m_functor{m_program,
-                                                                                              kernel::entry()} {}
+  naive_bitonic(gpu_bitonic<T> base)
+      : gpu_bitonic<T>{base}, m_program{m_ctx, kernel::source(t_name::name_str), true}, m_functor{m_program,
+                                                                                                  kernel::entry()} {}
+
+  naive_bitonic(bool verbose) : naive_bitonic{gpu_bitonic<T>{verbose}} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
     const size_type size = container.size(), stages = std::countr_zero(size);
@@ -174,14 +185,16 @@ private:
   size_type m_local_size = 0;
 
 public:
-  local_bitonic(const unsigned segment_size)
-      : gpu_bitonic<T>{}, m_program_initial{m_ctx, kernel_initial::source(t_name::name_str, segment_size), true},
+  local_bitonic(const size_type segment_size, gpu_bitonic<T> base)
+      : gpu_bitonic<T>{base}, m_program_initial{m_ctx, kernel_initial::source(t_name::name_str, segment_size), true},
         m_program_last{m_ctx, kernel_naive::source(t_name::name_str), true}, m_functor_initial{m_program_initial,
                                                                                                kernel_initial::entry()},
         m_functor_last{m_program_last, kernel_naive::entry()}, m_local_size{segment_size} {
     if (std::popcount(segment_size) != 1 || segment_size < 2)
       throw std::runtime_error{"Segment size must be a natural power of 2"};
   }
+
+  local_bitonic(const unsigned segment_size, bool verbose) : local_bitonic{segment_size, gpu_bitonic<T>{verbose}} {}
 
   void operator()(std::span<T> container, clutils::profiling_info *time = nullptr) override {
     const size_type size = container.size(), stages = std::countr_zero(size),

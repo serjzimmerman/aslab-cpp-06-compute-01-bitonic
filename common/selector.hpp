@@ -99,19 +99,24 @@ public:
   using platform_pred_type = std::function<bool(cl::Platform)>;
   using device_pred_type = std::function<bool(cl::Device)>;
 
-  platform_selector(platform_version min_ver, platform_pred_type platform_pred = default_pred,
+  platform_selector(platform_version min_ver, bool verbose = true, platform_pred_type platform_pred = default_pred,
                     device_pred_type device_pred = default_pred) {
     std::vector<cl::Platform> platforms, suitable_platforms;
     cl::Platform::get(&platforms);
 
     std::copy_if(platforms.begin(), platforms.end(), std::back_inserter(suitable_platforms),
-                 [min_ver, platform_pred](auto p) {
+                 [min_ver, platform_pred, verbose](auto p) {
                    const auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>()).ver;
-                   std::cout << "Info: Found platform: " << p.template getInfo<CL_PLATFORM_NAME>()
-                             << ", version: " << version.major << "." << version.minor << "\n";
-                   if (version < min_ver)
-                     std::cout << "Info: Does not fit minimum version requirements, requested: " << min_ver.major << "."
-                               << min_ver.minor << ", have: " << version.major << "." << version.minor << "\n";
+                   if (verbose) {
+                     std::cout << "Info: Found platform: " << p.template getInfo<CL_PLATFORM_NAME>()
+                               << ", version: " << version.major << "." << version.minor << "\n";
+                   }
+
+                   if (version < min_ver && verbose) {
+                     std::cout << "Info: Does not fit minimum version requirements, requested: " << version.major << "."
+                               << version.minor << ", have: " << min_ver.major << "." << min_ver.minor << "\n";
+                   }
+
                    return (version >= min_ver) && platform_pred(p);
                  });
 
@@ -125,7 +130,10 @@ public:
           std::find_if(devices.begin(), devices.end(), [device_pred](auto d) { return device_pred(d); });
       if (chosen_device == devices.end()) return false;
 
-      std::cout << "Info: Found suitable device: " << chosen_device->template getInfo<CL_DEVICE_NAME>() << "\n";
+      if (verbose) {
+        std::cout << "Info: Found suitable device: " << chosen_device->template getInfo<CL_DEVICE_NAME>() << "\n";
+      }
+
       m_device = *chosen_device;
       return true;
     });
