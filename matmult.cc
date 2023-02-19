@@ -25,9 +25,9 @@
 #include <stdexcept>
 #include <string>
 
-#include <boost/program_options.hpp>
-#include <boost/program_options/option.hpp>
 #include <type_traits>
+
+#include "popl.hpp"
 
 #include "linmath/contiguous_matrix.hpp"
 
@@ -47,7 +47,6 @@
 using eigen_matrix_type = Eigen::Matrix<TYPE__, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 #endif
 
-namespace po = boost::program_options;
 namespace linmath = throttle::linmath;
 
 using matrix_type = linmath::contiguous_matrix<TYPE__>;
@@ -217,39 +216,47 @@ eigen_matrix_type to_eigen_matrix(const matrix_type &matrix) {
 } // namespace
 
 int main(int argc, char *argv[]) try {
-  po::options_description desc("Available options");
+  popl::OptionParser op("Avaliable options");
+  auto help_option = op.add<popl::Switch>("h", "help", "Print this help message");
+  auto print_option = op.add<popl::Switch>("p", "print", "Print on failure");
+  auto eigen_option = op.add<popl::Switch>("e", "eigen", "Compare with Eigen matrix multiplication");
+  auto skip_option = op.add<popl::Switch>("s", "skip", "Skip naive cpu calculation");
 
-  TYPE__ lower, upper;
-  unsigned ax, ay, by, lsz;
+  auto lower_option = op.add<popl::Implicit<TYPE__>>("", "lower", "Lower bound", -32);
+  auto upper_option = op.add<popl::Implicit<TYPE__>>("", "upper", "Upper bound", +32);
 
-  std::string kernel_name;
-  desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")(
-      "eigen,e", "Compare with Eigen matrix multiplication")("skip,s", "Skip naive cpu calculation")(
-      "lower,l", po::value<TYPE__>(&lower)->default_value(-32), "Low bound for random integer")(
-      "upper,u", po::value<TYPE__>(&upper)->default_value(32), "Upper bound for random integer")(
-      "ax", po::value<unsigned>(&ax)->default_value(512),
-      "Number of rows in matrix A")("ay", po::value<unsigned>(&ay)->default_value(512), "Number of cols in matrix A")(
-      "by", po::value<unsigned>(&by)->default_value(512), "Number of cols in matrix B")(
-      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
-      "Which kernel to use: naive, tiled, tiledarb")("lsz", po::value<unsigned>(&lsz)->default_value(8),
-                                                     "Local iteration size");
+  auto ax_option = op.add<popl::Implicit<unsigned>>("", "ax", "Number of rows in matrix A", 512);
+  auto ay_option = op.add<popl::Implicit<unsigned>>("", "ay", "Number of cols in matrix A", 512);
+  auto by_option = op.add<popl::Implicit<unsigned>>("", "by", "Number of cols in matrix B", 512);
 
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-  po::notify(vm);
+  auto kernel_option =
+      op.add<popl::Implicit<std::string>>("", "kernel", "Which kernel to use: naive, tiled, tiledarb", "naive");
+  auto lsz_option = op.add<popl::Implicit<unsigned>>("", "lsz", "Local tile size", 256);
 
-  const bool skip_cpu = vm.count("skip");
-  const bool print_on_failure = vm.count("print");
-  const bool compare_eigen = vm.count("eigen");
+  op.parse(argc, argv);
+
+  if (help_option->is_set()) {
+    std::cout << op << "\n ";
+    return EXIT_SUCCESS;
+  }
+
+  const auto lower = lower_option->value(), upper = upper_option->value();
+  const auto kernel_name = kernel_option->value();
+  const auto lsz = lsz_option->value();
+  const auto ax = ax_option->value(), ay = ay_option->value(), by = by_option->value();
+
+  if (lower >= upper) {
+    std::cout << "Error: lower bound can't be greater than the upper bound\n";
+    return EXIT_FAILURE;
+  }
+
+  const bool skip_cpu = skip_option->is_set();
+  const bool print_on_failure = print_option->is_set();
+  const bool compare_eigen = eigen_option->is_set();
 
 #ifndef EIGEN_MAT_MULT
   if (compare_eigen) std::cout << "Warning: app wasn't built with Eigen, ignoring --eigen option\n";
 #endif
-
-  if (vm.count("help")) {
-    std::cout << desc << "\n";
-    return 1;
-  }
 
   std::unique_ptr<app::i_matmult> mult;
   if (kernel_name == "naive") {
@@ -261,6 +268,10 @@ int main(int argc, char *argv[]) try {
   } else {
     std::cout << "Unknown type of kernel: " << kernel_name << "\n";
     return EXIT_FAILURE;
+  }
+
+  if (kernel_name == "naive" && lsz_option->is_set()) {
+    std::cout << "Warning: local size provided but kernel used is \"naive\", ignoring --lsz option\n";
   }
 
   const auto print_sep = []() { std::cout << " -------- \n"; };

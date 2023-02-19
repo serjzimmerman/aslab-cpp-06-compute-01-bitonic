@@ -38,7 +38,8 @@ def parse_cmd_args():
 
 
 def execute_test(binname: str, kernel: str, n: int, lsz: int) -> str:
-    args = (binname, "--kernel", kernel, "-n", str(n), "--lsz", str(lsz))
+    args = (binname, "--kernel={}".format(kernel),
+            "--num={}".format(n), "--lsz={}".format(lsz))
     popen = subprocess.Popen(args, stdout=subprocess.PIPE)
     popen.wait()
     output = popen.stdout.read().decode("utf-8")

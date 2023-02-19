@@ -83,10 +83,12 @@ add_subdirectory(3rd-party/OpenCL-Headers EXCLUDE_FROM_ALL)
 add_subdirectory(3rd-party/OpenCL-ICD-Loader EXCLUDE_FROM_ALL)
 add_subdirectory(3rd-party/OpenCL-CLHPP EXCLUDE_FROM_ALL)
 
+add_library(popl INTERFACE)
+target_include_directories(popl INTERFACE 3rd-party/popl)
+
 set(RESISTORS_NO_TESTING__ ON CACHE BOOL "Disable testing" FORCE)
 add_subdirectory(linmath/lib EXCLUDE_FROM_ALL)
 
-find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(kernel2hpp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/kernel2hpp.py)
@@ -95,7 +97,7 @@ set(KERNEL_HPP_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/kernelhpp)
 
 function(add_opencl_program TARGET_NAME INPUT_FILES OPENCL_VERSION)
   add_executable(${TARGET_NAME} ${INPUT_FILES})
-  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL OpenCL::Headers OpenCL::HeadersCpp Boost::program_options)
+  target_link_libraries(${TARGET_NAME} PUBLIC OpenCL::OpenCL OpenCL::Headers OpenCL::HeadersCpp popl)
   target_compile_definitions(${TARGET_NAME} PUBLIC CL_HPP_TARGET_OPENCL_VERSION=${OPENCL_VERSION} CL_TARGET_OPENCL_VERSION=${OPENCL_VERSION})
   target_include_directories(${TARGET_NAME} PUBLIC common include ${KERNEL_HPP_INCLUDE})
 endfunction()

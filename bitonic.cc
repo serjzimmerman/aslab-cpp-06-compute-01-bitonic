@@ -26,21 +26,22 @@
 #include <string>
 #include <vector>
 
-#include <boost/program_options.hpp>
-#include <boost/program_options/option.hpp>
+#include "popl.hpp"
 
 #ifdef PAR_CPU_SORT
+
 #include <parallel/algorithm>
 #define CPU_SORT ::__gnu_parallel::sort
 #define CPU_SORT_NAME "__gnu_parallel::sort"
+
 #else
+
 #define CPU_SORT std::sort
 #define CPU_SORT_NAME "std::sort"
+
 #endif
 
 using vector_type = std::vector<TYPE__>;
-
-namespace po = boost::program_options;
 
 void vprint(const std::string title, const auto &vec) {
   std::cout << title << ": { ";
@@ -50,7 +51,7 @@ void vprint(const std::string title, const auto &vec) {
   std::cout << "}\n";
 }
 
-int validate_results(const auto &origin, const auto &res, const auto &check) {
+int validate_results(const auto &origin, const auto &res, const auto &check, bool print_on_failure) {
   if (std::equal(res.begin(), res.end(), check.begin())) {
     std::cout << "Bitonic sort works fine\n";
     return EXIT_SUCCESS;
@@ -58,9 +59,11 @@ int validate_results(const auto &origin, const auto &res, const auto &check) {
 
   std::cout << "Bitonic sort is broken\n";
 
-  vprint("Original", origin);
-  vprint("Result", res);
-  vprint("Correct", check);
+  if (print_on_failure) {
+    vprint("Original", origin);
+    vprint("Result", res);
+    vprint("Correct", check);
+  }
 
   return EXIT_FAILURE;
 }
@@ -71,33 +74,41 @@ template <> struct type_name<TYPE__> {
 };
 
 int main(int argc, char **argv) try {
-  po::options_description desc("Avaliable options");
-
-  TYPE__ lower, upper;
-  unsigned num, lsz;
-
-  std::string kernel_name;
   const auto maximum = std::numeric_limits<TYPE__>::max(), minimum = std::numeric_limits<TYPE__>::min();
-  desc.add_options()("help,h", "Print this help message")("print,p", "Print on failure")(
-      "skip,s", "Skip comparing with std::sort")("lower,l", po::value<TYPE__>(&lower)->default_value(minimum),
-                                                 "Lower bound")(
-      "upper,u", po::value<TYPE__>(&upper)->default_value(maximum),
-      "Upper bound")("num,n", po::value<unsigned>(&num)->default_value(22), "Length of the array to sort = 2^n")(
-      "kernel,k", po::value<std::string>(&kernel_name)->default_value("naive"),
-      "Which kernel to use: naive, cpu, local")("lsz", po::value<unsigned>(&lsz)->default_value(256),
-                                                "Local iteration size");
 
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-  po::notify(vm);
+  popl::OptionParser op("Avaliable options");
+  auto help_option = op.add<popl::Switch>("h", "help", "Print this help message");
+  auto print_option = op.add<popl::Switch>("p", "print", "Print on failure");
+  auto skip_option = op.add<popl::Switch>("s", "skip", "Skip comparing with std::sort");
 
-  bool skip_std_sort = vm.count("skip");
-  if (vm.count("help")) {
-    std::cout << desc << "\n ";
+  auto lower_option = op.add<popl::Implicit<TYPE__>>("", "lower", "Lower bound", minimum);
+  auto upper_option = op.add<popl::Implicit<TYPE__>>("", "upper", "Upper bound", maximum);
+
+  auto num_option = op.add<popl::Implicit<unsigned>>("", "num", "Length of the array to sort = 2^n", 24);
+  auto kernel_option =
+      op.add<popl::Implicit<std::string>>("", "kernel", "Which kernel to use: naive, cpu, local", "naive");
+  auto lsz_option = op.add<popl::Implicit<unsigned>>("", "lsz", "Local memory size", 256);
+
+  op.parse(argc, argv);
+
+  if (help_option->is_set()) {
+    std::cout << op << "\n ";
     return EXIT_SUCCESS;
   }
 
+  const bool skip_std_sort = skip_option->is_set(), print_on_failure = print_option->is_set();
+  const auto lower = lower_option->value(), upper = upper_option->value();
+  const auto num = num_option->value();
+  const auto kernel_name = kernel_option->value();
+  const auto lsz = lsz_option->value();
+
+  if (lower >= upper) {
+    std::cout << "Error: lower bound can't be greater than the upper bound\n";
+    return EXIT_FAILURE;
+  }
+
   const unsigned size = (1 << num);
+
   std::unique_ptr<bitonic::i_bitonic_sort<TYPE__>> sorter;
 
   if (kernel_name == "naive") {
@@ -109,6 +120,10 @@ int main(int argc, char **argv) try {
   } else {
     std::cout << "Unknown type of kernel: " << kernel_name << "\n ";
     return EXIT_FAILURE;
+  }
+
+  if (kernel_name != "local" && lsz_option->is_set()) {
+    std::cout << "Warning: local size provided but kernel used is not \"local\", ignoring --lsz option\n";
   }
 
   const auto print_sep = []() { std::cout << " -------- \n"; };
@@ -145,7 +160,7 @@ int main(int argc, char **argv) try {
   print_sep();
 
   if (skip_std_sort) return EXIT_SUCCESS;
-  return validate_results(origin, vec, check);
+  return validate_results(origin, vec, check, print_on_failure);
 
 } catch (cl::BuildError &e) {
   std::cerr << "Compilation failed:\n";

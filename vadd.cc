@@ -22,9 +22,7 @@
 #include <stdexcept>
 #include <string>
 
-#include <boost/algorithm/string/replace.hpp>
-#include <boost/program_options.hpp>
-#include <boost/program_options/option.hpp>
+#include "popl.hpp"
 
 #define STRINGIFY0(v) #v
 #define STRINGIFY(v) STRINGIFY0(v)
@@ -33,19 +31,14 @@
 #define TYPE__ int
 #endif
 
-namespace po = boost::program_options;
-
 namespace app {
 
-static const std::string adder_kernel =
-    R"(__kernel void vec_add(__global TYPE *A, __global TYPE *B, __global TYPE *C) {
-  int i = get_global_id(0);
-  C[i] = A[i] + B[i];
+static const std::string adder_kernel = std::string{"#define TYPE "} + STRINGIFY(TYPE__) + std::string{"\n"} +
+                                        R"(
+  __kernel void vec_add(__global TYPE *A, __global TYPE *B, __global TYPE *C) {
+    int i = get_global_id(0);
+    C[i] = A[i] + B[i];
 })";
-
-std::string substitute_type(std::string input) {
-  return boost::algorithm::replace_all_copy(input, "TYPE", STRINGIFY(TYPE__));
-}
 
 class vecadd : private clutils::platform_selector {
   cl::Context m_ctx;
@@ -59,7 +52,7 @@ public:
 
   vecadd()
       : clutils::platform_selector{c_api_version}, m_ctx{m_device}, m_queue{m_ctx, cl::QueueProperties::Profiling},
-        m_program{m_ctx, substitute_type(adder_kernel), true}, m_functor{m_program, "vec_add"} {}
+        m_program{m_ctx, adder_kernel, true}, m_functor{m_program, "vec_add"} {}
 
   std::vector<TYPE__> add(std::span<const TYPE__> spa, std::span<const TYPE__> spb,
                           std::chrono::microseconds *time = nullptr) {
@@ -98,28 +91,29 @@ public:
 } // namespace app
 
 int main(int argc, char *argv[]) try {
-  po::options_description desc("Available options");
+  popl::OptionParser op("Avaliable options");
+  auto help_option = op.add<popl::Switch>("h", "help", "Print this help message");
+  auto print_option = op.add<popl::Switch>("s", "skip", "Verbose print");
 
-  int lower, upper;
-  unsigned count;
-  desc.add_options()("help,h", "Print this help message")("lower,l", po::value<int>(&lower)->default_value(0),
-                                                          "Low bound for random integer")(
-      "upper,u", po::value<int>(&upper)->default_value(32),
-      "Upper bound for random integer")("count,c", po::value<unsigned>(&count)->default_value(1048576),
-                                        "Length of arrays to sum")("print,p", "Verbose print");
+  auto lower_option = op.add<popl::Implicit<TYPE__>>("", "lower", "Lower bound", 0);
+  auto upper_option = op.add<popl::Implicit<TYPE__>>("", "upper", "Upper bound", 32);
 
-  bool print = false;
+  auto num_option = op.add<popl::Implicit<unsigned>>("", "num", "Length of the arrays to add together", 1048576);
+  op.parse(argc, argv);
 
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-  po::notify(vm);
-
-  if (vm.count("help")) {
-    std::cout << desc << "\n";
-    return 1;
+  if (help_option->is_set()) {
+    std::cout << op << "\n ";
+    return EXIT_SUCCESS;
   }
 
-  print = vm.count("print");
+  const bool print = print_option->is_set();
+  const auto lower = lower_option->value(), upper = upper_option->value();
+  const auto num = num_option->value();
+
+  if (lower >= upper) {
+    std::cout << "Error: lower bound can't be greater than the upper bound\n";
+    return EXIT_FAILURE;
+  }
 
   app::vecadd adder;
 
@@ -134,8 +128,8 @@ int main(int argc, char *argv[]) try {
 
   auto fill_random_vector = clutils::create_random_number_generator(lower, upper);
   std::vector<TYPE__> a, b;
-  a.resize(count);
-  b.resize(count);
+  a.resize(num);
+  b.resize(num);
   fill_random_vector(a);
   fill_random_vector(b);
 
