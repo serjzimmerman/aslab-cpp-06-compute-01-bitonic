@@ -113,8 +113,8 @@ public:
                    }
 
                    if (version < min_ver && verbose) {
-                     std::cout << "Info: Does not fit minimum version requirements, requested: " << version.major << "."
-                               << version.minor << ", have: " << min_ver.major << "." << min_ver.minor << "\n";
+                     std::cout << "Info: Does not fit minimum version requirements, have: " << version.major << "."
+                               << version.minor << ", requested: " << min_ver.major << "." << min_ver.minor << "\n";
                    }
 
                    return (version >= min_ver) && platform_pred(p);
