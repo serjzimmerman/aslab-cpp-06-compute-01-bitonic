@@ -48,7 +48,7 @@ def execute_test(binname: str, kernel: str, n: int, lsz: int) -> str:
 
 def run_test_json_text(binname: str, kernel: str, n: int, lsz: int) -> str:
     output_text = execute_test(binname, kernel, n, lsz)
-    output_numbers = list(map(int, re.findall(r'\d+', output_text)))
+    output_numbers = list(map(int, re.findall(r'\d+', output_text)))[-4:]
     json_source = f'''{{
 \"test\" : {{
         \"lsz\" : {lsz},
