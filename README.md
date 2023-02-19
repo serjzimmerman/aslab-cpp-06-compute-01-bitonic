@@ -47,7 +47,10 @@ To run bitonic sort use __bitonic__ target.
 #  --lsz [=arg(=256)]                Local memory size
 
 # Run the best kernel with appropriate local size for your device:
-./bitonic --kernel=local --lsz=2048 --num=25
+./bitonic --kernel=local < ../resources/test8.dat
+
+# Try out our random tests:
+./bitonic --kernel=local --lsz=1024 --num=25 --random 
 ```
 
 ## 3. Matmult
