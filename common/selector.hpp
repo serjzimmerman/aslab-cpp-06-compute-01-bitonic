@@ -110,8 +110,8 @@ public:
                    std::cout << "Info: Found platform: " << p.template getInfo<CL_PLATFORM_NAME>()
                              << ", version: " << version.major << "." << version.minor << "\n";
                    if (version < min_ver)
-                     std::cout << "Info: Does not fit minimum version requirements, requested: " << version.major << "."
-                               << version.minor << ", have: " << min_ver.major << "." << min_ver.minor << "\n";
+                     std::cout << "Info: Does not fit minimum version requirements, requested: " << min_ver.major << "."
+                               << min_ver.minor << ", have: " << version.major << "." << version.minor << "\n";
                    return (version >= min_ver) && platform_pred(p);
                  });
 
