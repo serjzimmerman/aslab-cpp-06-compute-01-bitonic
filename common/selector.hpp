@@ -102,22 +102,30 @@ public:
   platform_selector(platform_version min_ver, platform_pred_type platform_pred = default_pred,
                     device_pred_type device_pred = default_pred) {
     std::vector<cl::Platform> platforms;
-
     cl::Platform::get(&platforms);
-    auto chosen_platform = std::find_if(platforms.begin(), platforms.end(), [min_ver, platform_pred](auto p) {
-      const auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>());
-      return (version.ver >= min_ver) && platform_pred(p);
-    });
 
-    if (chosen_platform == platforms.end()) throw std::runtime_error{"No fitting OpenCL platform found"};
+    std::vector<cl::Platform> suitable_platforms;
+    std::copy_if(platforms.begin(), platforms.end(), std::back_inserter(suitable_platforms),
+                 [min_ver, platform_pred](auto p) {
+                   const auto version = decode_platform_version(p.template getInfo<CL_PLATFORM_VERSION>());
+                   return (version.ver >= min_ver) && platform_pred(p);
+                 });
+    if (suitable_platforms.empty()) throw std::runtime_error{"No fitting OpenCL platform found"};
+
+    cl::Device device{};
+    auto chosen_platform =
+        std::find_if(suitable_platforms.begin(), suitable_platforms.end(), [device_pred, &device](auto p) {
+          std::vector<cl::Device> devices;
+          p.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+          auto chosen_device =
+              std::find_if(devices.begin(), devices.end(), [device_pred](auto d) { return device_pred(d); });
+          if (chosen_device == devices.end()) return false;
+          device = *chosen_device;
+          return true;
+        });
+    if (chosen_platform == suitable_platforms.end()) throw std::runtime_error("No suitable OpenCL device found");
     m_platform = *chosen_platform;
-
-    std::vector<cl::Device> devices;
-    m_platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-    auto chosen_device = std::find_if(devices.begin(), devices.end(), [device_pred](auto d) { return device_pred(d); });
-
-    if (chosen_device == devices.end()) throw std::runtime_error{"No suitable OpenCL device found"};
-    m_device = *chosen_device;
+    m_device = device;
   }
 };
 
